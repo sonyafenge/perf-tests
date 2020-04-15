@@ -31,6 +31,10 @@ const (
 	// May be overridden by a flag at startup.
 	// Deprecated: use the secure KubeControllerManagerPort instead.
 	InsecureKubeControllerManagerPort = 10252
+	// InsecureWorkloadControllerManagerPort is the default port for the workload controller manager status server.
+	// May be overridden by a flag at startup.
+	// Deprecated: use the secure WorkloadControllerManagerPort instead.
+	InsecureWorkloadControllerManagerPort = 10352
 	// InsecureCloudControllerManagerPort is the default port for the cloud controller manager server.
 	// This value may be overridden by a flag at startup.
 	// Deprecated: use the secure CloudControllerManagerPort instead.

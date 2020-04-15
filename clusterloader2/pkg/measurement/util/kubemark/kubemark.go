@@ -62,6 +62,25 @@ func GetKubemarkMasterComponentsResourceUsage(host, provider string) map[string]
 			result[fullName] = &KubemarkResourceUsage{Name: fullName, MemoryWorkingSetInBytes: mem * 1024, CPUUsageInCores: cpu / 100}
 		}
 	}
+
+	// Get arktos workload controller manager resource usage
+	sshResult, err = getMasterUsageByPrefix(host, provider, "workload")
+	if err != nil {
+		klog.Errorf("error when trying to SSH to master machine. Skipping probe. %v", err)
+		return nil
+	}
+	scanner = bufio.NewScanner(strings.NewReader(sshResult))
+	for scanner.Scan() {
+		var cpu float64
+		var mem uint64
+		var name string
+		fmt.Sscanf(strings.TrimSpace(scanner.Text()), "%f %d /usr/local/bin/workload-%s", &cpu, &mem, &name)
+		if name != "" {
+			// Gatherer expects pod_name/container_name format
+			fullName := "workload/" + name
+			result[fullName] = &KubemarkResourceUsage{Name: fullName, MemoryWorkingSetInBytes: mem * 1024, CPUUsageInCores: cpu / 100}
+		}
+	}
 	// Get etcd resource usage
 	sshResult, err = getMasterUsageByPrefix(host, provider, "bin/etcd")
 	if err != nil {

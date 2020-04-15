@@ -78,6 +78,12 @@ func createTestMetricsMeasurement() measurement.Measurement {
 	if metrics.controllerManagerMemoryProfile, err = measurement.CreateMeasurement("MemoryProfile"); err != nil {
 		klog.Errorf("%v: controllerManagerMemoryProfile creation error: %v", metrics, err)
 	}
+	if metrics.workloadcontrollerManagerCPUProfile, err = measurement.CreateMeasurement("CPUProfile"); err != nil {
+		klog.Errorf("%v: workloadcontrollerManagerCPUProfile creation error: %v", metrics, err)
+	}
+	if metrics.workloadcontrollerManagerMemoryProfile, err = measurement.CreateMeasurement("MemoryProfile"); err != nil {
+		klog.Errorf("%v: workloadcontrollerManagerMemoryProfile creation error: %v", metrics, err)
+	}
 	if metrics.systemPodMetrics, err = measurement.CreateMeasurement("SystemPodMetrics"); err != nil {
 		klog.Errorf("%v: systemPodMetrics creation error: %v", metrics, err)
 	}
@@ -85,20 +91,22 @@ func createTestMetricsMeasurement() measurement.Measurement {
 }
 
 type testMetrics struct {
-	etcdMetrics                    measurement.Measurement
-	schedulingMetrics              measurement.Measurement
-	metricsForE2E                  measurement.Measurement
-	resourceUsageSummary           measurement.Measurement
-	etcdCPUProfile                 measurement.Measurement
-	etcdMemoryProfile              measurement.Measurement
-	etcdMutexProfile               measurement.Measurement
-	apiserverCPUProfile            measurement.Measurement
-	apiserverMemoryProfile         measurement.Measurement
-	schedulerCPUProfile            measurement.Measurement
-	schedulerMemoryProfile         measurement.Measurement
-	controllerManagerCPUProfile    measurement.Measurement
-	controllerManagerMemoryProfile measurement.Measurement
-	systemPodMetrics               measurement.Measurement
+	etcdMetrics                            measurement.Measurement
+	schedulingMetrics                      measurement.Measurement
+	metricsForE2E                          measurement.Measurement
+	resourceUsageSummary                   measurement.Measurement
+	etcdCPUProfile                         measurement.Measurement
+	etcdMemoryProfile                      measurement.Measurement
+	etcdMutexProfile                       measurement.Measurement
+	apiserverCPUProfile                    measurement.Measurement
+	apiserverMemoryProfile                 measurement.Measurement
+	schedulerCPUProfile                    measurement.Measurement
+	schedulerMemoryProfile                 measurement.Measurement
+	controllerManagerCPUProfile            measurement.Measurement
+	controllerManagerMemoryProfile         measurement.Measurement
+	workloadcontrollerManagerCPUProfile    measurement.Measurement
+	workloadcontrollerManagerMemoryProfile measurement.Measurement
+	systemPodMetrics                       measurement.Measurement
 }
 
 // Execute supports two actions. start - which sets up all metrics.
@@ -152,6 +160,14 @@ func (t *testMetrics) Execute(config *measurement.MeasurementConfig) ([]measurem
 		"action":        "gather",
 		"componentName": "kube-controller-manager",
 	})
+	workloadControllerManagerStartConfig := createConfig(config, map[string]interface{}{
+		"action":        "start",
+		"componentName": "workload-controller-manager",
+	})
+	workloadControllerManagerGatherConfig := createConfig(config, map[string]interface{}{
+		"action":        "gather",
+		"componentName": "workload-controller-manager",
+	})
 
 	switch action {
 	case "start":
@@ -179,6 +195,10 @@ func (t *testMetrics) Execute(config *measurement.MeasurementConfig) ([]measurem
 		appendResults(&summaries, errList, summary, executeError(t.controllerManagerCPUProfile.String(), action, err))
 		summary, err = execute(t.controllerManagerMemoryProfile, kubeControllerManagerStartConfig)
 		appendResults(&summaries, errList, summary, executeError(t.controllerManagerMemoryProfile.String(), action, err))
+		summary, err = execute(t.workloadcontrollerManagerCPUProfile, workloadControllerManagerStartConfig)
+		appendResults(&summaries, errList, summary, executeError(t.workloadcontrollerManagerCPUProfile.String(), action, err))
+		summary, err = execute(t.workloadcontrollerManagerMemoryProfile, workloadControllerManagerStartConfig)
+		appendResults(&summaries, errList, summary, executeError(t.workloadcontrollerManagerMemoryProfile.String(), action, err))
 		summary, err = execute(t.systemPodMetrics, config)
 		appendResults(&summaries, errList, summary, executeError(t.systemPodMetrics.String(), action, err))
 	case "gather":
@@ -208,6 +228,10 @@ func (t *testMetrics) Execute(config *measurement.MeasurementConfig) ([]measurem
 		appendResults(&summaries, errList, summary, executeError(t.controllerManagerCPUProfile.String(), action, err))
 		summary, err = execute(t.controllerManagerMemoryProfile, kubeControllerManagerGatherConfig)
 		appendResults(&summaries, errList, summary, executeError(t.controllerManagerMemoryProfile.String(), action, err))
+		summary, err = execute(t.workloadcontrollerManagerCPUProfile, workloadControllerManagerGatherConfig)
+		appendResults(&summaries, errList, summary, executeError(t.workloadcontrollerManagerCPUProfile.String(), action, err))
+		summary, err = execute(t.workloadcontrollerManagerMemoryProfile, workloadControllerManagerGatherConfig)
+		appendResults(&summaries, errList, summary, executeError(t.workloadcontrollerManagerMemoryProfile.String(), action, err))
 		summary, err = execute(t.systemPodMetrics, config)
 		appendResults(&summaries, errList, summary, executeError(t.systemPodMetrics.String(), action, err))
 	default:
@@ -236,6 +260,8 @@ func (t *testMetrics) Dispose() {
 	t.schedulerMemoryProfile.Dispose()
 	t.controllerManagerCPUProfile.Dispose()
 	t.controllerManagerMemoryProfile.Dispose()
+	t.workloadcontrollerManagerCPUProfile.Dispose()
+	t.workloadcontrollerManagerMemoryProfile.Dispose()
 }
 
 // String returns a string representation of the measurement.

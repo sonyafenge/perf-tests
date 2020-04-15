@@ -29,6 +29,9 @@ const (
 	// ControllerManagerPort is the default port for the controller manager status server.
 	// May be overridden by a flag at startup.
 	ControllerManagerPort = 10252
+	// WorkloadControllerManagerPort is the default port for the workload controller manager status server.
+	// May be overridden by a flag at startup.
+	WorkloadControllerManagerPort = 10352
 	// CloudControllerManagerPort is the default port for the cloud controller manager server.
 	// This value may be overriden by a flag at startup.
 	CloudControllerManagerPort = 10253

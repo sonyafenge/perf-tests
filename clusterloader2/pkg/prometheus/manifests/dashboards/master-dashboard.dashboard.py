@@ -500,6 +500,17 @@ dashboard = d.Dashboard(
             ],
             collapse=True,
         ),
+        d.Row(
+            title="workload-controller-manager",
+            panels=[
+                d.simple_graph(
+                    "Workqueue depths",
+                    'workqueue_depth{endpoint="workload-controller-manager"}',
+                    legend="{{name}}",
+                )
+            ],
+            collapse=True,
+        ),
         d.Row(title="Master VM", panels=VM_PANELS, collapse=True),
     ],
     templating=g.Templating(
