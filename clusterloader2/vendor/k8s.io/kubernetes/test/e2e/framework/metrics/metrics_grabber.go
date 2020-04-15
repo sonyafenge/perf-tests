@@ -35,26 +35,28 @@ const (
 )
 
 type MetricsCollection struct {
-	ApiServerMetrics         ApiServerMetrics
-	ControllerManagerMetrics ControllerManagerMetrics
-	KubeletMetrics           map[string]KubeletMetrics
-	SchedulerMetrics         SchedulerMetrics
-	ClusterAutoscalerMetrics ClusterAutoscalerMetrics
+	ApiServerMetrics                 ApiServerMetrics
+	ControllerManagerMetrics         ControllerManagerMetrics
+	WorkloadControllerManagerMetrics WorkloadControllerManagerMetrics
+	KubeletMetrics                   map[string]KubeletMetrics
+	SchedulerMetrics                 SchedulerMetrics
+	ClusterAutoscalerMetrics         ClusterAutoscalerMetrics
 }
 
 type MetricsGrabber struct {
-	client                    clientset.Interface
-	externalClient            clientset.Interface
-	grabFromApiServer         bool
-	grabFromControllerManager bool
-	grabFromKubelets          bool
-	grabFromScheduler         bool
-	grabFromClusterAutoscaler bool
-	masterName                string
-	registeredMaster          bool
+	client                            clientset.Interface
+	externalClient                    clientset.Interface
+	grabFromApiServer                 bool
+	grabFromControllerManager         bool
+	grabFromWorkloadControllerManager bool
+	grabFromKubelets                  bool
+	grabFromScheduler                 bool
+	grabFromClusterAutoscaler         bool
+	masterName                        string
+	registeredMaster                  bool
 }
 
-func NewMetricsGrabber(c clientset.Interface, ec clientset.Interface, kubelets bool, scheduler bool, controllers bool, apiServer bool, clusterAutoscaler bool) (*MetricsGrabber, error) {
+func NewMetricsGrabber(c clientset.Interface, ec clientset.Interface, kubelets bool, scheduler bool, controllers bool, workloadcontrollers bool, apiServer bool, clusterAutoscaler bool) (*MetricsGrabber, error) {
 	registeredMaster := false
 	masterName := ""
 	nodeList, err := c.CoreV1().Nodes().List(metav1.ListOptions{})
@@ -74,6 +76,7 @@ func NewMetricsGrabber(c clientset.Interface, ec clientset.Interface, kubelets b
 	if !registeredMaster {
 		scheduler = false
 		controllers = false
+		workloadcontrollers = false
 		clusterAutoscaler = ec != nil
 		if clusterAutoscaler {
 			klog.Warningf("Master node is not registered. Grabbing metrics from Scheduler, ControllerManager is disabled.")
@@ -83,15 +86,16 @@ func NewMetricsGrabber(c clientset.Interface, ec clientset.Interface, kubelets b
 	}
 
 	return &MetricsGrabber{
-		client:                    c,
-		externalClient:            ec,
-		grabFromApiServer:         apiServer,
-		grabFromControllerManager: controllers,
-		grabFromKubelets:          kubelets,
-		grabFromScheduler:         scheduler,
-		grabFromClusterAutoscaler: clusterAutoscaler,
-		masterName:                masterName,
-		registeredMaster:          registeredMaster,
+		client:                            c,
+		externalClient:                    ec,
+		grabFromApiServer:                 apiServer,
+		grabFromControllerManager:         controllers,
+		grabFromWorkloadControllerManager: workloadcontrollers,
+		grabFromKubelets:                  kubelets,
+		grabFromScheduler:                 scheduler,
+		grabFromClusterAutoscaler:         clusterAutoscaler,
+		masterName:                        masterName,
+		registeredMaster:                  registeredMaster,
 	}, nil
 }
 
@@ -165,6 +169,17 @@ func (g *MetricsGrabber) GrabFromControllerManager() (ControllerManagerMetrics, 
 	return parseControllerManagerMetrics(output)
 }
 
+func (g *MetricsGrabber) GrabFromWorkloadControllerManager() (WorkloadControllerManagerMetrics, error) {
+	if !g.registeredMaster {
+		return WorkloadControllerManagerMetrics{}, fmt.Errorf("Master's Kubelet is not registered. Skipping WorkloadControllerManager's metrics gathering.")
+	}
+	output, err := g.getMetricsFromPod(g.client, fmt.Sprintf("%v-%v", "workload-controller-manager", g.masterName), metav1.NamespaceSystem, ports.InsecureWorkloadControllerManagerPort)
+	if err != nil {
+		return WorkloadControllerManagerMetrics{}, err
+	}
+	return parseWorkloadControllerManagerMetrics(output)
+}
+
 func (g *MetricsGrabber) GrabFromApiServer() (ApiServerMetrics, error) {
 	output, err := g.getMetricsFromApiServer()
 	if err != nil {
@@ -198,6 +213,14 @@ func (g *MetricsGrabber) Grab() (MetricsCollection, error) {
 			errs = append(errs, err)
 		} else {
 			result.ControllerManagerMetrics = metrics
+		}
+	}
+	if g.grabFromWorkloadControllerManager {
+		metrics, err := g.GrabFromWorkloadControllerManager()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			result.WorkloadControllerManagerMetrics = metrics
 		}
 	}
 	if g.grabFromClusterAutoscaler {

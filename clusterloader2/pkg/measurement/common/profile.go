@@ -251,6 +251,8 @@ func getPortForComponent(componentName string) (int, error) {
 		return 443, nil
 	case "kube-controller-manager":
 		return 10252, nil
+	case "workload-controller-manager":
+		return 10352, nil
 	case "kube-scheduler":
 		return 10251, nil
 	}
