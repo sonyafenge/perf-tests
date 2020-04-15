@@ -73,6 +73,8 @@ type PrometheusController struct {
 	templateMapping map[string]interface{}
 	// diskMetadata store name and zone of Prometheus persistent disk.
 	diskMetadata prometheusDiskMetadata
+	// ssh executor to run commands in cluster nodes via ssh
+	ssh util.SSHExecutor
 }
 
 // NewPrometheusController creates a new instance of PrometheusController for the given config.
@@ -96,7 +98,7 @@ func NewPrometheusController(clusterLoaderConfig *config.ClusterLoaderConfig) (p
 		delete(mapping, "MasterIps")
 	}
 	if _, exists := mapping["PROMETHEUS_SCRAPE_APISERVER_ONLY"]; !exists {
-		mapping["PROMETHEUS_SCRAPE_APISERVER_ONLY"] = clusterLoaderConfig.ClusterConfig.Provider == "gke"
+		mapping["PROMETHEUS_SCRAPE_APISERVER_ONLY"] = clusterLoaderConfig.ClusterConfig.Provider == "gke" || clusterLoaderConfig.ClusterConfig.Provider == "aks"
 	}
 	// TODO: Change to pure assignments when overrides are not used.
 	if _, exists := mapping["PROMETHEUS_SCRAPE_ETCD"]; !exists {
@@ -120,6 +122,8 @@ func NewPrometheusController(clusterLoaderConfig *config.ClusterLoaderConfig) (p
 	mapping["PROMETHEUS_SCRAPE_KUBELETS"] = clusterLoaderConfig.PrometheusConfig.ScrapeKubelets
 
 	pc.templateMapping = mapping
+
+	pc.ssh = &util.GCloudSSHExecutor{}
 
 	return pc, nil
 }
@@ -267,7 +271,7 @@ func (pc *PrometheusController) runNodeExporter() error {
 					return fmt.Errorf("Unable to open manifest file: %v", err)
 				}
 				defer f.Close()
-				return util.SSH("sudo tee /etc/kubernetes/manifests/node-exporter.yaml > /dev/null", &node, f)
+				return pc.ssh.Exec("sudo tee /etc/kubernetes/manifests/node-exporter.yaml > /dev/null", &node, f)
 			})
 		}
 	}

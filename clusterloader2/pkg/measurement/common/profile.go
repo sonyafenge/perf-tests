@@ -18,12 +18,10 @@ package common
 
 import (
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -90,7 +88,7 @@ func createProfileMeasurementFactory(name, kind string) func() measurement.Measu
 	}
 }
 
-func (p *profileMeasurement) start(config *measurement.MeasurementConfig) error {
+func (p *profileMeasurement) start(config *measurement.MeasurementConfig, SSHToMasterSupported bool) error {
 	if err := p.populateProfileConfig(config); err != nil {
 		return err
 	}
@@ -115,7 +113,6 @@ func (p *profileMeasurement) start(config *measurement.MeasurementConfig) error 
 	// We may want to revisit ot adjust it in the future.
 	numNodes := config.ClusterFramework.GetClusterConfig().Nodes
 	profileFrequency := time.Duration(5+numNodes/250) * time.Minute
-
 	go func() {
 		defer p.wg.Done()
 		for {
@@ -123,7 +120,7 @@ func (p *profileMeasurement) start(config *measurement.MeasurementConfig) error 
 			case <-p.stopCh:
 				return
 			case <-time.After(profileFrequency):
-				profileSummaries, err := p.gatherProfile(k8sClient)
+				profileSummaries, err := p.gatherProfile(k8sClient, SSHToMasterSupported, config)
 				if err != nil {
 					klog.Errorf("failed to gather profile for %#v: %v", *p.config, err)
 					continue
@@ -147,6 +144,14 @@ func (p *profileMeasurement) stop() {
 
 // Execute gathers memory profile of a given component.
 func (p *profileMeasurement) Execute(config *measurement.MeasurementConfig) ([]measurement.Summary, error) {
+	SSHToMasterSupported := config.ClusterFramework.GetClusterConfig().SSHToMasterSupported
+	APIServerPprofEnabled := config.ClusterFramework.GetClusterConfig().APIServerPprofByClientEnabled
+
+	if !SSHToMasterSupported && APIServerPprofEnabled {
+		klog.Warningf("fetching profile data from is not possible from provider: %s", p.config.provider)
+		return nil, nil
+	}
+
 	action, err := util.GetString(config.Params, "action")
 	if err != nil {
 		return nil, err
@@ -158,7 +163,7 @@ func (p *profileMeasurement) Execute(config *measurement.MeasurementConfig) ([]m
 			klog.Infof("%s: measurement already running", p)
 			return nil, nil
 		}
-		return nil, p.start(config)
+		return nil, p.start(config, SSHToMasterSupported)
 	case "gather":
 		p.stop()
 		return p.summaries, nil
@@ -175,13 +180,11 @@ func (p *profileMeasurement) String() string {
 	return p.name
 }
 
-func (p *profileMeasurement) gatherProfile(c clientset.Interface) ([]measurement.Summary, error) {
-	profilePort, err := getPortForComponent(p.config.componentName)
+func (p *profileMeasurement) gatherProfile(c clientset.Interface, SSHToMasterSupported bool, config *measurement.MeasurementConfig) ([]measurement.Summary, error) {
+	getCommand, err := p.getProfileCommand(config)
 	if err != nil {
-		return nil, fmt.Errorf("profile gathering failed finding component port: %v", err)
+		return nil, goerrors.Errorf("profile gathering failed during retrieving profile command: %v", err)
 	}
-	profileProtocol := getProtocolForComponent(p.config.componentName)
-	getCommand := fmt.Sprintf("curl -s -k %slocalhost:%v/debug/pprof/%s", profileProtocol, profilePort, p.config.kind)
 
 	var summaries []measurement.Summary
 	for _, host := range p.config.hosts {
@@ -189,9 +192,9 @@ func (p *profileMeasurement) gatherProfile(c clientset.Interface) ([]measurement
 
 		// Get the profile data over SSH.
 		// Start by checking that the provider allows us to do so.
-		if p.config.provider == "gke" || shouldGetAPIServerByK8sClient(p.config.componentName) {
-			// SSH to master is not possible in gke, but if the component is
-			// kube-apiserver we can get the profile via k8s client.
+		if !SSHToMasterSupported {
+			// SSH to master for this provider is not possible.
+			// For kube-apiserver, we can still fetch the profile using a RESTClient and pprof.
 			// TODO(#246): This will connect to a random master in HA (multi-master) clusters, fix it.
 			if p.config.componentName == "kube-apiserver" {
 				body, err := c.CoreV1().RESTClient().Get().AbsPath("/debug/pprof/" + p.config.kind).DoRaw()
@@ -221,15 +224,23 @@ func (p *profileMeasurement) shouldExposeApiServerDebugEndpoint() bool {
 	return p.config.componentName == "kube-apiserver"
 }
 
-func shouldGetAPIServerByK8sClient(componentName string) bool {
-	// In some cases the kube-apiserver cannot be reached by curl.
-	// We add a config here as a walkaround.
-	getAPIServerByK8sClient, err := strconv.ParseBool(os.Getenv("GET_APISERVER_PPROF_BY_K8S_CLIENT"))
+func (p *profileMeasurement) getProfileCommand(config *measurement.MeasurementConfig) (string, error) {
+	profilePort, err := getPortForComponent(p.config.componentName)
 	if err != nil {
-		klog.Warning("GET_APISERVER_PPROF_BY_K8S_CLIENT not set, using curl by default")
+		return "", goerrors.Errorf("get profile command failed finding component port: %v", err)
+	}
+	profileProtocol := getProtocolForComponent(p.config.componentName)
+
+	var command string
+	if p.config.componentName == "etcd" {
+		etcdCert := config.ClusterFramework.GetClusterConfig().EtcdCertificatePath
+		etcdKey := config.ClusterFramework.GetClusterConfig().EtcdKeyPath
+		command = fmt.Sprintf("curl -s -k --cert %s --key %s %slocalhost:%v/debug/pprof/%s", etcdCert, etcdKey, profileProtocol, profilePort, p.config.kind)
+	} else {
+		command = fmt.Sprintf("curl -s -k %slocalhost:%v/debug/pprof/%s", profileProtocol, profilePort, p.config.kind)
 	}
 
-	return getAPIServerByK8sClient && strings.EqualFold("kube-apiserver", componentName)
+	return command, nil
 }
 
 func getPortForComponent(componentName string) (int, error) {
@@ -240,6 +251,8 @@ func getPortForComponent(componentName string) (int, error) {
 		return 443, nil
 	case "kube-controller-manager":
 		return 10252, nil
+	case "workload-controller-manager":
+		return 10352, nil
 	case "kube-scheduler":
 		return 10251, nil
 	}
@@ -248,6 +261,8 @@ func getPortForComponent(componentName string) (int, error) {
 
 func getProtocolForComponent(componentName string) string {
 	switch componentName {
+	case "etcd":
+		return "https://"
 	case "kube-apiserver":
 		return "https://"
 	default:

@@ -34,12 +34,21 @@ type ClusterConfig struct {
 	KubeConfigPath             string
 	Nodes                      int
 	Provider                   string
+	EtcdCertificatePath        string
+	EtcdKeyPath                string
 	EtcdInsecurePort           int
 	MasterIPs                  []string
 	MasterInternalIPs          []string
 	MasterName                 string
 	KubemarkRootKubeConfigPath string
 	DeleteStaleNamespaces      bool
+	// SSHToMasterSupported determines whether SSH access to master machines is possible.
+	// If false (impossible for many  providers), ClusterLoader will skip operations requiring it.
+	SSHToMasterSupported bool
+	// APIServerPprofByClientEnabled determines whether kube-apiserver pprof endpoint can be accessed
+	// using kubernetes client. If false, clusterloader will avoid collecting kube-apiserver profiles.
+	APIServerPprofByClientEnabled bool
+	KubeletPort                   int
 }
 
 // PrometheusConfig represents all flags used by prometheus.

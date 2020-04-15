@@ -19,6 +19,7 @@ package test
 import (
 	"fmt"
 	"io/ioutil"
+	"k8s.io/perf-tests/clusterloader2/pkg/measurement"
 	"path"
 	"strings"
 	"time"
@@ -55,11 +56,46 @@ func (ste *simpleTestExecutor) ExecuteTest(ctx Context, conf *api.Config) *error
 	klog.Infof("AutomanagedNamespacePrefix: %s", ctx.GetClusterFramework().GetAutomanagedNamespacePrefix())
 	defer cleanupResources(ctx)
 	ctx.GetTuningSetFactory().Init(conf.TuningSets)
+
 	stopCh := make(chan struct{})
-	defer close(stopCh)
-	if err := ctx.GetChaosMonkey().Init(conf.ChaosMonkey, stopCh); err != nil {
+	chaosMonkeyWaitGroup, err := ctx.GetChaosMonkey().Init(conf.ChaosMonkey, stopCh)
+	if err != nil {
+		close(stopCh)
 		return errors.NewErrorList(fmt.Errorf("error while creating chaos monkey: %v", err))
 	}
+	errList := ste.ExecuteTestSteps(ctx, conf)
+	close(stopCh)
+
+	if chaosMonkeyWaitGroup != nil {
+		// Wait for the Chaos Monkey subroutine to end
+		klog.Info("Waiting for the chaos monkey subroutine to end...")
+		chaosMonkeyWaitGroup.Wait()
+		klog.Info("Chaos monkey ended.")
+	}
+
+	for _, summary := range ctx.GetMeasurementManager().GetSummaries() {
+		if ctx.GetClusterLoaderConfig().ReportDir == "" {
+			klog.Infof("%v: %v", summary.SummaryName(), summary.SummaryContent())
+		} else {
+			testDistinctor := ""
+			if ctx.GetClusterLoaderConfig().TestScenario.Identifier != "" {
+				testDistinctor = "_" + ctx.GetClusterLoaderConfig().TestScenario.Identifier
+			}
+			// TODO(krzysied): Remember to keep original filename style for backward compatibility.
+			fileName := strings.Join([]string{summary.SummaryName(), conf.Name + testDistinctor, summary.SummaryTime().Format(time.RFC3339)}, "_")
+			filePath := path.Join(ctx.GetClusterLoaderConfig().ReportDir, strings.Join([]string{fileName, summary.SummaryExt()}, "."))
+			if err := ioutil.WriteFile(filePath, []byte(summary.SummaryContent()), 0644); err != nil {
+				errList.Append(fmt.Errorf("writing to file %v error: %v", filePath, err))
+				continue
+			}
+		}
+	}
+	klog.Infof(ctx.GetChaosMonkey().Summary())
+	return errList
+}
+
+// ExecuteTestSteps executes all test steps provided in configuration
+func (ste *simpleTestExecutor) ExecuteTestSteps(ctx Context, conf *api.Config) *errors.ErrorList {
 	automanagedNamespacesList, staleNamespaces, err := ctx.GetClusterFramework().ListAutomanagedNamespaces()
 	if err != nil {
 		return errors.NewErrorList(fmt.Errorf("automanaged namespaces listing failed: %v", err))
@@ -89,29 +125,6 @@ func (ste *simpleTestExecutor) ExecuteTest(ctx Context, conf *api.Config) *error
 			}
 		}
 	}
-
-	for _, summary := range ctx.GetMeasurementManager().GetSummaries() {
-		if err != nil {
-			errList.Append(fmt.Errorf("printing summary %s error: %v", summary.SummaryName(), err))
-			continue
-		}
-		if ctx.GetClusterLoaderConfig().ReportDir == "" {
-			klog.Infof("%v: %v", summary.SummaryName(), summary.SummaryContent())
-		} else {
-			testDistinctor := ""
-			if ctx.GetClusterLoaderConfig().TestScenario.Identifier != "" {
-				testDistinctor = "_" + ctx.GetClusterLoaderConfig().TestScenario.Identifier
-			}
-			// TODO(krzysied): Remember to keep original filename style for backward compatibility.
-			fileName := strings.Join([]string{summary.SummaryName(), conf.Name + testDistinctor, summary.SummaryTime().Format(time.RFC3339)}, "_")
-			filePath := path.Join(ctx.GetClusterLoaderConfig().ReportDir, strings.Join([]string{fileName, summary.SummaryExt()}, "."))
-			if err := ioutil.WriteFile(filePath, []byte(summary.SummaryContent()), 0644); err != nil {
-				errList.Append(fmt.Errorf("writing to file %v error: %v", filePath, err))
-				continue
-			}
-		}
-	}
-	klog.Infof(ctx.GetChaosMonkey().Summary())
 	return errList
 }
 
@@ -127,9 +140,7 @@ func (ste *simpleTestExecutor) ExecuteStep(ctx Context, step *api.Step) *errors.
 			// index is created to make i value unchangeable during thread execution.
 			index := i
 			wg.Start(func() {
-				err := ctx.GetMeasurementManager().Execute(step.Measurements[index].Method,
-					step.Measurements[index].Identifier,
-					step.Measurements[index].Params)
+				err := measurement.Execute(ctx.GetMeasurementManager(), &step.Measurements[index])
 				if err != nil {
 					errList.Append(fmt.Errorf("measurement call %s - %s error: %v", step.Measurements[index].Method, step.Measurements[index].Identifier, err))
 				}

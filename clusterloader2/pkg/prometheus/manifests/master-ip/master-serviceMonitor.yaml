@@ -42,5 +42,7 @@ spec:
     port: kube-scheduler
   - interval: 5s
     port: kube-controller-manager
+  - interval: 5s
+    port: workload-controller-manager
   selector:
     k8s-app: master

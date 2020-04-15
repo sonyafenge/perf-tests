@@ -72,6 +72,7 @@ func (m *metricsForE2EMeasurement) Execute(config *measurement.MeasurementConfig
 		grabMetricsFromKubelets,
 		true, /*grab metrics from scheduler*/
 		true, /*grab metrics from controller manager*/
+		true, /*grab metrics from workload controller manager*/
 		true, /*grab metrics from apiserver*/
 		false /*grab metrics from cluster autoscaler*/)
 	if err != nil {

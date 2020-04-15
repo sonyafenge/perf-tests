@@ -28,6 +28,8 @@ subsets:
         port: 10251
       - name: kube-controller-manager
         port: 10252
+      - name: workload-controller-manager
+        port: 10352
       {{end}}
       {{if $PROMETHEUS_SCRAPE_NODE_EXPORTER}}
       - name: node-exporter

@@ -14,4 +14,5 @@ RESTART_COUNT_THRESHOLD_OVERRIDES: |
   # As long as tests are passing, a single restart shouldn't be a problem
   kube-scheduler: 1
   kube-controller-manager: 1
+  workload-controller-manager: 1
   l7-lb-controller: 1

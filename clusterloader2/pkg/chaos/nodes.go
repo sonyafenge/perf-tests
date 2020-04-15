@@ -49,6 +49,7 @@ type NodeKiller struct {
 	// killedNodes stores names of the nodes that have been killed by NodeKiller.
 	killedNodes sets.String
 	recorder    *eventRecorder
+	ssh         util.SSHExecutor
 }
 
 type nodeAction string
@@ -85,20 +86,22 @@ func NewNodeKiller(config api.NodeFailureConfig, client clientset.Interface, pro
 	if provider != "gce" && provider != "gke" {
 		return nil, fmt.Errorf("provider %q is not supported by NodeKiller", provider)
 	}
-	return &NodeKiller{config, client, provider, sets.NewString(), newEventRecorder()}, nil
+	sshExecutor := &util.GCloudSSHExecutor{}
+	return &NodeKiller{config, client, provider, sets.NewString(), newEventRecorder(), sshExecutor}, nil
 }
 
 // Run starts NodeKiller until stopCh is closed.
-func (k *NodeKiller) Run(stopCh <-chan struct{}) {
+func (k *NodeKiller) Run(stopCh <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
 	// wait.JitterUntil starts work immediately, so wait first.
-	time.Sleep(wait.Jitter(time.Duration(k.config.Interval), k.config.JitterFactor))
+	sleepInterrupt(wait.Jitter(time.Duration(k.config.Interval), k.config.JitterFactor), stopCh)
 	wait.JitterUntil(func() {
 		nodes, err := k.pickNodes()
 		if err != nil {
 			klog.Errorf("%s: Unable to pick nodes to kill: %v", k, err)
 			return
 		}
-		k.kill(nodes)
+		k.kill(nodes, stopCh)
 	}, time.Duration(k.config.Interval), k.config.JitterFactor, true, stopCh)
 }
 
@@ -142,7 +145,7 @@ func (k *NodeKiller) pickNodes() ([]v1.Node, error) {
 	return nodes, nil
 }
 
-func (k *NodeKiller) kill(nodes []v1.Node) {
+func (k *NodeKiller) kill(nodes []v1.Node, stopCh <-chan struct{}) {
 	wg := sync.WaitGroup{}
 	wg.Add(len(nodes))
 	for _, node := range nodes {
@@ -153,28 +156,18 @@ func (k *NodeKiller) kill(nodes []v1.Node) {
 
 			klog.Infof("%s: Stopping docker and kubelet on %q to simulate failure", k, node.Name)
 			k.addStopServicesEvent(node.Name)
-			err := util.SSH("sudo systemctl stop docker kubelet", &node, nil)
+			err := k.ssh.Exec("sudo systemctl stop docker kubelet", &node, nil)
 			if err != nil {
 				klog.Errorf("%s: ERROR while stopping node %q: %v", k, node.Name, err)
 				return
 			}
 
-			time.Sleep(time.Duration(k.config.SimulatedDowntime))
+			// Listening for interruptions on stopCh or wait for the simulated downtime
+			sleepInterrupt(time.Duration(k.config.SimulatedDowntime), stopCh)
 
 			klog.Infof("%s: Rebooting %q to repair the node", k, node.Name)
-			// Scheduling a reboot in one second, then disconnecting.
-			//
-			// Bash command explanation:
-			// 'nohup' - Making sure that end of SSH connection signal will not break sudo
-			// 'sudo' - Elevated priviliages, required by 'shutdown'
-			// 'shutdown' - Control machine power
-			// '-r' - Making 'shutdown' to reboot, instead of power-off
-			// '+1s' - Parameter to 'reboot', to wait 1 second before rebooting.
-			// '> /dev/null 2> /dev/null < /dev/null' - File descriptor redirect, all three I/O to avoid ssh hanging,
-			//                                          see https://web.archive.org/web/20090429074212/http://www.openssh.com/faq.html#3.10
-			// '&' - Execute command in background, end without waiting for result
 			k.addRebootEvent(node.Name)
-			err = util.SSH("nohup sudo shutdown -r +1s > /dev/null 2> /dev/null < /dev/null &", &node, nil)
+			err = k.ssh.Exec("sudo reboot", &node, nil)
 			if err != nil {
 				klog.Errorf("%s: Error while rebooting node %q: %v", k, node.Name, err)
 				return
@@ -204,4 +197,15 @@ func (k *NodeKiller) Summary() string {
 
 func (k *NodeKiller) String() string {
 	return "NodeKiller"
+}
+
+// Utility method to put the current routine to sleep or break the sleep if stopCh closes
+// Note of warning: if stopCh is already closed the process may not sleep at all.
+func sleepInterrupt(duration time.Duration, stopCh <-chan struct{}) {
+	select {
+	case <-stopCh:
+		break
+	case <-time.After(duration):
+		break
+	}
 }
