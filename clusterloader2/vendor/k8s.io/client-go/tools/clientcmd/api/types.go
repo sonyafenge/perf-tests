@@ -1,5 +1,6 @@
 /*
 Copyright 2014 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -143,6 +144,9 @@ type Context struct {
 	// Extensions holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields
 	// +optional
 	Extensions map[string]runtime.Object `json:"extensions,omitempty"`
+	// Tenant is the default tenant to use on unspecified requests
+	// +optional
+	Tenant string `json:"tenant,omitempty"`
 }
 
 // AuthProviderConfig holds the configuration for a specified auth provider.

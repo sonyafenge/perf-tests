@@ -1,5 +1,6 @@
 /*
 Copyright The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,6 +62,58 @@ message AWSElasticBlockStoreVolumeSource {
   // More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore
   // +optional
   optional bool readOnly = 4;
+}
+
+//  Action object - Created and persisted in etcd in response to invocation of pods/action subresource
+message Action {
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // Spec defines the Action desired by the caller.
+  optional ActionSpec spec = 2;
+
+  // Status represents the current information about an Action
+  // +optional
+  optional ActionStatus status = 3;
+}
+
+// ActionList is a list of events.
+message ActionList {
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  // Items is a list of Action objects
+  repeated Action items = 2;
+}
+
+message ActionSpec {
+  optional string nodeName = 1;
+
+  optional string podName = 2;
+
+  optional string podID = 3;
+
+  optional RebootAction rebootAction = 4;
+
+  optional SnapshotAction snapshotAction = 5;
+
+  optional RestoreAction restoreAction = 6;
+}
+
+message ActionStatus {
+  optional bool complete = 1;
+
+  optional string error = 2;
+
+  optional string podName = 3;
+
+  optional string podID = 4;
+
+  optional RebootStatus rebootStatus = 5;
+
+  optional SnapshotStatus snapshotStatus = 6;
+
+  optional RestoreStatus restoreStatus = 7;
 }
 
 // Affinity is a group of affinity scheduling rules.
@@ -218,6 +271,46 @@ message CSIPersistentVolumeSource {
   // secret object contains more than one secret, all secrets are passed.
   // +optional
   optional SecretReference nodePublishSecretRef = 8;
+
+  // ControllerExpandSecretRef is a reference to the secret object containing
+  // sensitive information to pass to the CSI driver to complete the CSI
+  // ControllerExpandVolume call.
+  // This is an alpha field and requires enabling ExpandCSIVolumes feature gate.
+  // This field is optional, and may be empty if no secret is required. If the
+  // secret object contains more than one secret, all secrets are passed.
+  // +optional
+  optional SecretReference controllerExpandSecretRef = 9;
+}
+
+// Represents a source location of a volume to mount, managed by an external CSI driver
+message CSIVolumeSource {
+  // Driver is the name of the CSI driver that handles this volume.
+  // Consult with your admin for the correct name as registered in the cluster.
+  optional string driver = 1;
+
+  // Specifies a read-only configuration for the volume.
+  // Defaults to false (read/write).
+  // +optional
+  optional bool readOnly = 2;
+
+  // Filesystem type to mount. Ex. "ext4", "xfs", "ntfs".
+  // If not provided, the empty value is passed to the associated CSI driver
+  // which will determine the default filesystem to apply.
+  // +optional
+  optional string fsType = 3;
+
+  // VolumeAttributes stores driver-specific properties that are passed to the CSI
+  // driver. Consult your driver's documentation for supported values.
+  // +optional
+  map<string, string> volumeAttributes = 4;
+
+  // NodePublishSecretRef is a reference to the secret object containing
+  // sensitive information to pass to the CSI driver to complete the CSI
+  // NodePublishVolume and NodeUnpublishVolume calls.
+  // This field is optional, and  may be empty if no secret is required. If the
+  // secret object contains more than one secret, all secret references are passed.
+  // +optional
+  optional LocalObjectReference nodePublishSecretRef = 5;
 }
 
 // Adds and removes POSIX capabilities from running containers.
@@ -362,6 +455,36 @@ message ClientIPConfig {
   optional int32 timeoutSeconds = 1;
 }
 
+// Colection of fields that are common to Container and VirtualMachine objects
+message CommonInfo {
+  // Required. Name of the container specified as a DNS_LABEL.
+  optional string name = 1;
+
+  // Image name.
+  // +optional
+  optional string image = 2;
+
+  // Compute Resources required by this container.
+  // +optional
+  optional ResourceRequirements resources = 3;
+
+  // Node compute resources allocated to the container.
+  // +optional
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resourcesAllocated = 6;
+
+  // Resources resize policy for the container.
+  // +optional
+  repeated ResizePolicy resizePolicy = 7;
+
+  // Pod volumes to mount into the workload's filesystem.
+  // +optional
+  repeated VolumeMount volumeMounts = 4;
+
+  // Image pull policy.
+  // +optional
+  optional string imagePullPolicy = 5;
+}
+
 // Information about the condition of a component.
 message ComponentCondition {
   // Type of condition for a component.
@@ -456,7 +579,7 @@ message ConfigMapKeySelector {
   // The key to select.
   optional string key = 2;
 
-  // Specify whether the ConfigMap or it's key must be defined
+  // Specify whether the ConfigMap or its key must be defined
   // +optional
   optional bool optional = 3;
 }
@@ -516,7 +639,7 @@ message ConfigMapProjection {
   // +optional
   repeated KeyToPath items = 2;
 
-  // Specify whether the ConfigMap or it's keys must be defined
+  // Specify whether the ConfigMap or its keys must be defined
   // +optional
   optional bool optional = 4;
 }
@@ -548,7 +671,7 @@ message ConfigMapVolumeSource {
   // +optional
   optional int32 defaultMode = 3;
 
-  // Specify whether the ConfigMap or it's keys must be defined
+  // Specify whether the ConfigMap or its keys must be defined
   // +optional
   optional bool optional = 4;
 }
@@ -628,10 +751,19 @@ message Container {
   repeated EnvVar env = 7;
 
   // Compute Resources required by this container.
-  // Cannot be updated.
-  // More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+  // More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ //TODO: Mutable - update doc
   // +optional
   optional ResourceRequirements resources = 8;
+
+  // Node compute resources allocated to the container.
+  // More info: TODO: update doc
+  // +optional
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resourcesAllocated = 22;
+
+  // Resources resize policy for the container.
+  // More info: TODO: update doc
+  // +optional
+  repeated ResizePolicy resizePolicy = 23;
 
   // Pod volumes to mount into the container's filesystem.
   // Cannot be updated.
@@ -861,12 +993,90 @@ message ContainerStatus {
   // Container's ID in the format 'docker://<container_id>'.
   // +optional
   optional string containerID = 8;
+
+  // Compute resource requests and limits applied to the container.
+  // More info: TODO: Update doc
+  // +optional
+  optional ResourceRequirements resources = 9;
+}
+
+// ControllerInstance contains controller instances with ids and last health check timestamp
+message ControllerInstance {
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // A string that designate the type of the controller instance
+  optional string controllerType = 2;
+
+  //  An int64 integer that identifies the upperbound of workload instances managed by this controller instance
+  optional int64 controllerKey = 3;
+
+  // WorkloadNum is int32 that identifies the workload number assigned to the controller instance at last healthcheck
+  // +optional
+  optional int32 workloadNum = 4;
+
+  // IsLocked is bool that identifies the lock status of the controller instance
+  optional bool isLocked = 5;
+}
+
+// ControllerInstanceList is a list of controller instances that have same controller type
+message ControllerInstanceList {
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  // List of controller instance
+  repeated ControllerInstance items = 2;
+}
+
+// CustomAction object - Specified when invoking action subresource for Pod
+message CustomAction {
+  // ObjectMeta describes the object to which this Action applies
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // Name of the operation e.g. Reboot, Snapshot, ...
+  optional string operation = 2;
+
+  // Action specific parameters
+  optional RebootParams rebootParams = 3;
+
+  optional SnapshotParams snapshotParams = 4;
+
+  optional RestoreParams restoreParams = 5;
 }
 
 // DaemonEndpoint contains information about a single Daemon endpoint.
 message DaemonEndpoint {
   // Port number of the given endpoint.
   optional int32 Port = 1;
+}
+
+// DataPartitionConfig contains api server data partition configurations. Name in ObjectMeta is used for identitification
+message DataPartitionConfig {
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // Range start is inclusive
+  optional string rangeStart = 2;
+
+  // Whether this is an open end start
+  optional bool isRangeStartValid = 3;
+
+  // Range end is exclusive
+  optional string rangeEnd = 4;
+
+  // Whether this is an open end end
+  optional bool isRangeEndValid = 5;
+
+  // Which service group is using this data configuration
+  optional string serviceGroupId = 6;
+}
+
+// DataPartitionConfigList is a list of data partition configurations that api server data partition use
+message DataPartitionConfigList {
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  // List of data partition configuration
+  repeated DataPartitionConfig items = 2;
 }
 
 // Represents downward API info for projecting into a projected volume.
@@ -1002,6 +1212,10 @@ message EndpointSubset {
   // Port numbers available on the related IP addresses.
   // +optional
   repeated EndpointPort ports = 3;
+
+  // The service group id of the api server cluster
+  // +optional
+  optional string serviceGroupId = 4;
 }
 
 // Endpoints is a collection of endpoints that implement the actual service. Example:
@@ -1187,6 +1401,7 @@ message EventSeries {
   optional k8s.io.apimachinery.pkg.apis.meta.v1.MicroTime lastObservedTime = 2;
 
   // State of this Series: Ongoing or Finished
+  // Deprecated. Planned removal for 1.18
   optional string state = 3;
 }
 
@@ -1636,11 +1851,15 @@ message Lifecycle {
   // +optional
   optional Handler postStart = 1;
 
-  // PreStop is called immediately before a container is terminated.
-  // The container is terminated after the handler completes.
-  // The reason for termination is passed to the handler.
-  // Regardless of the outcome of the handler, the container is eventually terminated.
-  // Other management of the container blocks until the hook completes.
+  // PreStop is called immediately before a container is terminated due to an
+  // API request or management event such as liveness probe failure,
+  // preemption, resource contention, etc. The handler is not called if the
+  // container crashes or exits. The reason for termination is passed to the
+  // handler. The Pod's termination grace period countdown begins before the
+  // PreStop hooked is executed. Regardless of the outcome of the handler, the
+  // container will eventually terminate within the Pod's termination grace
+  // period. Other management of the container blocks until the hook completes
+  // or until the termination grace period is reached.
   // More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
   // +optional
   optional Handler preStop = 2;
@@ -1780,6 +1999,25 @@ message NFSVolumeSource {
   optional bool readOnly = 3;
 }
 
+// NICStatus contains details for the current status of this nic.
+message NICStatus {
+  // Name of nic
+  // +optional
+  optional string name = 1;
+
+  // ID of nic
+  // +optional
+  optional string portID = 2;
+
+  // Lifecycle state of nic
+  // +optional
+  optional string state = 3;
+
+  // Brief CamelCase string explaining why nic is in its current state.
+  // +optional
+  optional string reason = 4;
+}
+
 // Namespace provides a scope for Names.
 // Use of multiple namespaces is optional.
 message Namespace {
@@ -1825,6 +2063,36 @@ message NamespaceStatus {
   // More info: https://kubernetes.io/docs/tasks/administer-cluster/namespaces/
   // +optional
   optional string phase = 1;
+}
+
+// Network interface type used in the VM workload
+// Nic info will be provided at the pod level so they can be used by both Container and VM workload
+message Nic {
+  // The interface name to be used in the VM or container
+  // +optional
+  optional string name = 1;
+
+  // The subnetName where the Nic belongs to
+  // the subnetName  of the nic. default to subnet where the VM is created from
+  // +optional
+  optional string subnetName = 2;
+
+  // PortId from the IaaS layer for the Nic
+  // the portID with user precreated port ( ENI ).
+  // +optional
+  optional string portId = 3;
+
+  // IpAddress is the user specified IP, instead of dynamically allocated one
+  // +optional
+  optional string ipAddress = 4;
+
+  // any user specified data for the Nic
+  // +optional
+  optional string tag = 5;
+
+  // default to false
+  // +optional
+  optional bool ipv6Enabled = 6;
 }
 
 // Node is a worker node in Kubernetes.
@@ -2211,6 +2479,9 @@ message ObjectReference {
   // TODO: this design is not final and this field is subject to change in the future.
   // +optional
   optional string fieldPath = 7;
+
+  // +optional
+  optional string tenant = 8;
 }
 
 // PersistentVolume (PV) is a storage resource provisioned by an administrator.
@@ -2488,7 +2759,7 @@ message PersistentVolumeSource {
   // +optional
   optional StorageOSPersistentVolumeSource storageos = 21;
 
-  // CSI represents storage that handled by an external CSI driver (Beta feature).
+  // CSI represents storage that is handled by an external CSI driver (Beta feature).
   // +optional
   optional CSIPersistentVolumeSource csi = 22;
 }
@@ -2892,6 +3163,10 @@ message PodSecurityContext {
   // +optional
   optional SELinuxOptions seLinuxOptions = 1;
 
+  // Windows security options.
+  // +optional
+  optional WindowsSecurityContextOptions windowsOptions = 8;
+
   // The UID to run the entrypoint of the container process.
   // Defaults to user specified in image metadata if unspecified.
   // May also be set in SecurityContext.  If set in both SecurityContext and
@@ -2951,6 +3226,17 @@ message PodSignature {
 
 // PodSpec is a description of a pod.
 message PodSpec {
+  // The name of the VPC the VM belongs to
+  // required for VM workload only to keep the container workload unchanged
+  // +optional
+  optional string vpc = 33;
+
+  // List of network interfaces
+  // +optional
+  // +patchMergeKey=name
+  // +patchStrategy=merge,retainKeys
+  repeated Nic nics = 34;
+
   // List of volumes that can be mounted by containers belonging to the pod.
   // More info: https://kubernetes.io/docs/concepts/storage/volumes
   // +optional
@@ -2981,7 +3267,16 @@ message PodSpec {
   // Cannot be updated.
   // +patchMergeKey=name
   // +patchStrategy=merge
+  // +optional
   repeated Container containers = 2;
+
+  // List of virtualMachines belonging to the pod.
+  // Cannot be updated.
+  // +optional
+  optional VirtualMachine virtualMachine = 32;
+
+  // Common info for VM or Containers
+  repeated CommonInfo workloadInfo = 35;
 
   // Restart policy for all containers within the pod.
   // One of Always, OnFailure, Never.
@@ -3141,7 +3436,7 @@ message PodSpec {
   // If specified, all readiness gates will be evaluated for pod readiness.
   // A pod is ready when all its containers are ready AND
   // all conditions specified in the readiness gates have status equal to "True"
-  // More info: https://github.com/kubernetes/community/blob/master/keps/sig-network/0007-pod-ready%2B%2B.md
+  // More info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md
   // +optional
   repeated PodReadinessGate readinessGates = 28;
 
@@ -3149,15 +3444,23 @@ message PodSpec {
   // to run this pod.  If no RuntimeClass resource matches the named class, the pod will not be run.
   // If unset or empty, the "legacy" RuntimeClass will be used, which is an implicit class with an
   // empty definition that uses the default runtime handler.
-  // More info: https://github.com/kubernetes/community/blob/master/keps/sig-node/0014-runtime-class.md
-  // This is an alpha feature and may change in the future.
+  // More info: https://git.k8s.io/enhancements/keps/sig-node/runtime-class.md
+  // This is a beta feature as of Kubernetes v1.14.
   // +optional
   optional string runtimeClassName = 29;
 
   // EnableServiceLinks indicates whether information about services should be injected into pod's
   // environment variables, matching the syntax of Docker links.
+  // Optional: Defaults to true.
   // +optional
   optional bool enableServiceLinks = 30;
+
+  // PreemptionPolicy is the Policy for preempting pods with lower priority.
+  // One of Never, PreemptLowerPriority.
+  // Defaults to PreemptLowerPriority if unset.
+  // This field is alpha-level and is only honored by servers that enable the NonPreemptingPriority feature.
+  // +optional
+  optional string preemptionPolicy = 31;
 }
 
 // PodStatus represents information about the status of a pod. Status may trail the actual
@@ -3242,6 +3545,15 @@ message PodStatus {
   // More info: https://git.k8s.io/community/contributors/design-proposals/node/resource-qos.md
   // +optional
   optional string qosClass = 9;
+
+  // Virtual machine status
+  // currently a pod can only have one virtual machine
+  // +optional
+  optional VirtualMachineStatus virtualMachineStatus = 12;
+
+  // NIC status
+  // +optional
+  repeated NICStatus nicStatuses = 13;
 }
 
 // PodStatusResult is a wrapper for PodStatus returned by kubelet that can be encode/decoded
@@ -3421,6 +3733,11 @@ message QuobyteVolumeSource {
   // Default is no group
   // +optional
   optional string group = 5;
+
+  // Tenant owning the given Quobyte volume in the Backend
+  // Used with dynamically provisioned Quobyte volumes, value is set by the plugin
+  // +optional
+  optional string tenant = 6;
 }
 
 // Represents a Rados Block Device mount that lasts the lifetime of a pod.
@@ -3539,6 +3856,18 @@ message RangeAllocation {
   optional bytes data = 3;
 }
 
+message RebootAction {
+  optional int32 delayInSeconds = 1;
+}
+
+message RebootParams {
+  optional int32 delayInSeconds = 1;
+}
+
+message RebootStatus {
+  optional bool rebootSuccessful = 1;
+}
+
 // ReplicationController represents the configuration of a replication controller.
 message ReplicationController {
   // If the Labels of a ReplicationController are empty, they are defaulted to
@@ -3654,6 +3983,16 @@ message ReplicationControllerStatus {
   repeated ReplicationControllerCondition conditions = 6;
 }
 
+// ResizePolicy represents the resource resize policy for a single container.
+message ResizePolicy {
+  // Name of the resource type to which this resize policy applies.
+  // Supported values: cpu, memory.
+  optional string resourceName = 1;
+
+  // Container resize policy applicable to the above resource.
+  optional string policy = 2;
+}
+
 // ResourceFieldSelector represents container resources (cpu, memory) and their output format
 message ResourceFieldSelector {
   // Container name: required for volumes, optional for env vars
@@ -3742,6 +4081,19 @@ message ResourceRequirements {
   // More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
   // +optional
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> requests = 2;
+}
+
+message RestoreAction {
+  optional string snapshotID = 1;
+}
+
+message RestoreParams {
+  // ID of the snapshot to which the VM has to be restored
+  optional string snapshotID = 1;
+}
+
+message RestoreStatus {
+  optional bool restoreSuccessful = 1;
 }
 
 // SELinuxOptions are the labels to be applied to the container
@@ -3931,7 +4283,7 @@ message SecretKeySelector {
   // The key of the secret to select from.  Must be a valid secret key.
   optional string key = 2;
 
-  // Specify whether the Secret or it's key must be defined
+  // Specify whether the Secret or its key must be defined
   // +optional
   optional bool optional = 3;
 }
@@ -4013,7 +4365,7 @@ message SecretVolumeSource {
   // +optional
   optional int32 defaultMode = 3;
 
-  // Specify whether the Secret or it's keys must be defined
+  // Specify whether the Secret or its keys must be defined
   // +optional
   optional bool optional = 4;
 }
@@ -4039,6 +4391,10 @@ message SecurityContext {
   // PodSecurityContext, the value specified in SecurityContext takes precedence.
   // +optional
   optional SELinuxOptions seLinuxOptions = 3;
+
+  // Windows security options.
+  // +optional
+  optional WindowsSecurityContextOptions windowsOptions = 10;
 
   // The UID to run the entrypoint of the container process.
   // Defaults to user specified in image metadata if unspecified.
@@ -4247,6 +4603,9 @@ message ServiceSpec {
   // More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
   // +patchMergeKey=port
   // +patchStrategy=merge
+  // +listType=map
+  // +listMapKey=port
+  // +listMapKey=protocol
   repeated ServicePort ports = 1;
 
   // Route service traffic to pods with label keys and values matching this
@@ -4283,7 +4642,7 @@ message ServiceSpec {
   // "LoadBalancer" builds on NodePort and creates an
   // external load-balancer (if supported in the current cloud) which routes
   // to the clusterIP.
-  // More info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types
+  // More info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
   // +optional
   optional string type = 4;
 
@@ -4294,6 +4653,11 @@ message ServiceSpec {
   // that are not part of the Kubernetes system.
   // +optional
   repeated string externalIPs = 5;
+
+  // Only applies to Service Type: NeutronLB
+  // subnetID is external Neutron load balancer vip_subnet_id
+  // +optional
+  optional string subnetID = 16;
 
   // Supports "ClientIP" and "None". Used to maintain session affinity.
   // Enable client IP based session affinity.
@@ -4369,6 +4733,42 @@ message SessionAffinityConfig {
   // clientIP contains the configurations of Client IP based session affinity.
   // +optional
   optional ClientIPConfig clientIP = 1;
+}
+
+message SnapshotAction {
+  optional string snapshotName = 1;
+}
+
+message SnapshotParams {
+  // Name of the snapshot
+  optional string snapshotName = 1;
+}
+
+message SnapshotStatus {
+  optional string snapshotID = 1;
+}
+
+// StorageCluster describes the attributes on backend storage
+message StorageCluster {
+  // Standard object's metadata.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // A string that specifies the storage object identity
+  optional string storageClusterId = 2;
+
+  // A string that specifies the backend storage server address
+  optional string serviceAddress = 3;
+}
+
+// StorageClusterList is a list of StorageCluster
+message StorageClusterList {
+  // Standard list metadata.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  // Items is the list of StorageCluster objects in the list.
+  repeated StorageCluster items = 2;
 }
 
 // Represents a StorageOS persistent volume resource.
@@ -4477,6 +4877,52 @@ message Taint {
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time timeAdded = 4;
 }
 
+// Tenant provides a scope for Names.
+// Use of multiple Tenants is optional.
+message Tenant {
+  // Standard object's metadata.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+
+  // Spec defines the behavior of the Tenant.
+  // +optional
+  optional TenantSpec spec = 2;
+
+  // Status describes the current status of a Tenant.
+  // More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
+  // +optional
+  optional TenantStatus status = 3;
+}
+
+// TenantList is a list of Tenants.
+message TenantList {
+  // Standard list metadata.
+  // +optional
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.ListMeta metadata = 1;
+
+  // Items is the list of Tenant objects in the list.
+  repeated Tenant items = 2;
+}
+
+// TenantSpec describes the attributes on a Tenant.
+message TenantSpec {
+  // Finalizers is an opaque list of values that must be empty to permanently remove object from storage.
+  // More info: https://kubernetes.io/docs/tasks/administer-cluster/tenants/
+  // +optional
+  repeated string finalizers = 1;
+
+  // StorageClusterId specifies the storage location of objects belong to this tenant
+  optional string storageClusterId = 2;
+}
+
+// TenantStatus is information about the current status of a Tenant.
+message TenantStatus {
+  // Phase is the current lifecycle phase of the tenant.
+  // More info: https://kubernetes.io/docs/tasks/administer-cluster/tenants/
+  // +optional
+  optional string phase = 1;
+}
+
 // The pod this Toleration is attached to tolerates any taint that matches
 // the triple <key,value,effect> using the matching operator <operator>.
 message Toleration {
@@ -4548,6 +4994,124 @@ message TypedLocalObjectReference {
   optional string name = 3;
 }
 
+// Virtual machine struct defines the information of a VM in the system
+message VirtualMachine {
+  // Name of the container specified as a DNS_LABEL.
+  // Each container in a pod must have a unique name (DNS_LABEL).
+  // Cannot be updated.
+  optional string name = 1;
+
+  // Image name.
+  // More info: https://kubernetes.io/docs/concepts/containers/images
+  // This field is optional to allow higher level config management to default or override
+  // container images in workload controllers like Deployments and StatefulSets.
+  // +optional
+  optional string image = 2;
+
+  // Compute Resources required by this container.
+  // Cannot be updated.
+  // More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+  // +optional
+  optional ResourceRequirements resources = 3;
+
+  // Node compute resources allocated to the container.
+  // +optional
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resourcesAllocated = 15;
+
+  // Resources resize policy for the container.
+  // +optional
+  repeated ResizePolicy resizePolicy = 16;
+
+  // Pod volumes to mount into the workload's filesystem.
+  // Cannot be updated.
+  // +optional
+  // +patchMergeKey=mountPath
+  // +patchStrategy=merge
+  repeated VolumeMount volumeMounts = 4;
+
+  // Image pull policy.
+  // One of Always, Never, IfNotPresent.
+  // Defaults to Always if :latest tag is specified, or IfNotPresent otherwise.
+  // Cannot be updated.
+  // More info: https://kubernetes.io/docs/concepts/containers/images#updating-images
+  // +optional
+  optional string imagePullPolicy = 5;
+
+  // either keyPair or the publicKeystring must be provided, used to logon to the VM
+  // +optional
+  optional string keyPairName = 6;
+
+  // +optional
+  optional string publicKey = 7;
+
+  // Configuration information or scripts to use upon launch. Must be Base64 encoded. Restricted to 65535 bytes.
+  // +optional
+  optional bytes userData = 8;
+
+  // default none, array cert ID that used to verify the image
+  // +optional
+  repeated string trustedImageCertificate = 9;
+
+  // stop | terminate VM. default to stop
+  // +optional
+  optional string shutdownBehavior = 10;
+
+  // if not specified, the first volume in the volume slice will be used
+  // +optional
+  optional string bootVolume = 11;
+
+  // default running
+  // +optional
+  optional string powerSpec = 12;
+
+  // volumeDevices is the list of block devices to be used by the container.
+  // This is a beta feature.
+  // +patchMergeKey=devicePath
+  // +patchStrategy=merge
+  // +optional
+  repeated VolumeDevice volumeDevices = 13;
+
+  // cloud-init user data script
+  // +optional
+  optional string cloudInitUserDataScript = 14;
+}
+
+// VirtualMachineStatus holds the details of the current status of a given virtual machine instance
+message VirtualMachineStatus {
+  // Required
+  optional string name = 1;
+
+  // +optional
+  optional string virtualMachineId = 2;
+
+  // image
+  // +optional
+  optional string imageId = 3;
+
+  // +optional
+  optional string image = 4;
+
+  // state of the virtual machine
+  // +optional
+  optional string state = 5;
+
+  // +optional
+  optional string lastTerminationState = 6;
+
+  // +optional
+  optional string powerState = 7;
+
+  // +optional
+  optional bool ready = 8;
+
+  // +optional
+  optional int32 restartCount = 9;
+
+  // Compute resource requests and limits applied to the VM
+  // +optional
+  optional ResourceRequirements resources = 10;
+}
+
 // Volume represents a named volume in a pod that may be accessed by any container in the pod.
 message Volume {
   // Volume's name.
@@ -4595,6 +5159,14 @@ message VolumeMount {
   // This field is beta in 1.10.
   // +optional
   optional string mountPropagation = 5;
+
+  // Expanded path within the volume from which the container's volume should be mounted.
+  // Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
+  // Defaults to "" (volume's root).
+  // SubPathExpr and SubPath are mutually exclusive.
+  // This field is beta in 1.15.
+  // +optional
+  optional string subPathExpr = 6;
 }
 
 // VolumeNodeAffinity defines constraints that limit what nodes this volume can be accessed from.
@@ -4755,6 +5327,10 @@ message VolumeSource {
   // StorageOS represents a StorageOS volume attached and mounted on Kubernetes nodes.
   // +optional
   optional StorageOSVolumeSource storageos = 27;
+
+  // CSI (Container Storage Interface) represents storage that is handled by an external CSI driver (Alpha feature).
+  // +optional
+  optional CSIVolumeSource csi = 28;
 }
 
 // Represents a vSphere volume resource.
@@ -4785,5 +5361,20 @@ message WeightedPodAffinityTerm {
 
   // Required. A pod affinity term, associated with the corresponding weight.
   optional PodAffinityTerm podAffinityTerm = 2;
+}
+
+// WindowsSecurityContextOptions contain Windows-specific options and credentials.
+message WindowsSecurityContextOptions {
+  // GMSACredentialSpecName is the name of the GMSA credential spec to use.
+  // This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
+  // +optional
+  optional string gmsaCredentialSpecName = 1;
+
+  // GMSACredentialSpec is where the GMSA admission webhook
+  // (https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the
+  // GMSA credential spec named by the GMSACredentialSpecName field.
+  // This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
+  // +optional
+  optional string gmsaCredentialSpec = 2;
 }
 

@@ -1,5 +1,6 @@
 /*
 Copyright 2018 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,7 +43,7 @@ func NewFilteredDynamicSharedInformerFactory(client dynamic.Interface, defaultRe
 	return &dynamicSharedInformerFactory{
 		client:           client,
 		defaultResync:    defaultResync,
-		namespace:        metav1.NamespaceAll,
+		namespace:        namespace,
 		informers:        map[schema.GroupVersionResource]informers.GenericInformer{},
 		startedInformers: make(map[schema.GroupVersionResource]bool),
 		tweakListOptions: tweakListOptions,
@@ -51,6 +52,7 @@ func NewFilteredDynamicSharedInformerFactory(client dynamic.Interface, defaultRe
 
 type dynamicSharedInformerFactory struct {
 	client        dynamic.Interface
+	clients       []dynamic.Interface
 	defaultResync time.Duration
 	namespace     string
 
@@ -74,7 +76,7 @@ func (f *dynamicSharedInformerFactory) ForResource(gvr schema.GroupVersionResour
 		return informer
 	}
 
-	informer = NewFilteredDynamicInformer(f.client, gvr, f.namespace, f.defaultResync, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	informer = NewFilteredDynamicInformer(f, gvr, f.namespace, f.defaultResync, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 	f.informers[key] = informer
 
 	return informer
@@ -115,8 +117,12 @@ func (f *dynamicSharedInformerFactory) WaitForCacheSync(stopCh <-chan struct{}) 
 	return res
 }
 
+func NewFilteredDynamicInformer(f *dynamicSharedInformerFactory, gvr schema.GroupVersionResource, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc) informers.GenericInformer {
+	return NewFilteredDynamicInformerWithMultiTenancy(f, gvr, namespace, resyncPeriod, indexers, tweakListOptions, metav1.TenantSystem)
+}
+
 // NewFilteredDynamicInformer constructs a new informer for a dynamic type.
-func NewFilteredDynamicInformer(client dynamic.Interface, gvr schema.GroupVersionResource, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc) informers.GenericInformer {
+func NewFilteredDynamicInformerWithMultiTenancy(f *dynamicSharedInformerFactory, gvr schema.GroupVersionResource, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions TweakListOptionsFunc, tenant string) informers.GenericInformer {
 	return &dynamicInformer{
 		gvr: gvr,
 		informer: cache.NewSharedIndexInformer(
@@ -125,13 +131,14 @@ func NewFilteredDynamicInformer(client dynamic.Interface, gvr schema.GroupVersio
 					if tweakListOptions != nil {
 						tweakListOptions(&options)
 					}
-					return client.Resource(gvr).Namespace(namespace).List(options)
+					return f.client.Resource(gvr).NamespaceWithMultiTenancy(namespace, tenant).List(options)
 				},
-				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				WatchFunc: func(options metav1.ListOptions) watch.AggregatedWatchInterface {
 					if tweakListOptions != nil {
 						tweakListOptions(&options)
 					}
-					return client.Resource(gvr).Namespace(namespace).Watch(options)
+					// TODO - assume resource is shared everywhere, no need to watch all api servers for it
+					return f.client.Resource(gvr).NamespaceWithMultiTenancy(namespace, tenant).Watch(options)
 				},
 			},
 			&unstructured.Unstructured{},

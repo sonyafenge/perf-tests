@@ -1,0 +1,90 @@
+{
+  "kind": "Service",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "2",
+    "generateName": "3",
+    "tenant": "4",
+    "namespace": "5",
+    "selfLink": "6",
+    "uid": "ą飋īqJ枊a8衍`Ĩɘ.蘯6ċV夸e",
+    "hashKey": 2234230302359329354,
+    "resourceVersion": "16964250748386560239",
+    "generation": 5828590068104375683,
+    "creationTimestamp": null,
+    "deletionGracePeriodSeconds": 6797158496028726353,
+    "labels": {
+      "8": "9"
+    },
+    "annotations": {
+      "10": "11"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "12",
+        "kind": "13",
+        "name": "14",
+        "uid": "z廔ȇ{sŊƏ",
+        "hashKey": -3769286901598778062,
+        "controller": false,
+        "blockOwnerDeletion": true
+      }
+    ],
+    "finalizers": [
+      "15"
+    ],
+    "clusterName": "16",
+    "managedFields": [
+      {
+        "manager": "17",
+        "operation": "鐊唊飙Ş-U圴÷a/ɔ}摁(湗Ć]",
+        "apiVersion": "18",
+        "fields": {"19":{"20":null}}
+      }
+    ]
+  },
+  "spec": {
+    "ports": [
+      {
+        "name": "25",
+        "protocol": "脽ěĂ凗蓏Ŋ蛊ĉy緅縕",
+        "port": -1493017703,
+        "targetPort": -123438221,
+        "nodePort": 2048967527
+      }
+    ],
+    "selector": {
+      "26": "27"
+    },
+    "clusterIP": "28",
+    "type": "ǡƏS$+½H",
+    "externalIPs": [
+      "29"
+    ],
+    "subnetID": "30",
+    "sessionAffinity": "洝尿彀",
+    "loadBalancerIP": "31",
+    "loadBalancerSourceRanges": [
+      "32"
+    ],
+    "externalName": "33",
+    "externalTrafficPolicy": "螩B",
+    "healthCheckNodePort": -21009133,
+    "publishNotReadyAddresses": true,
+    "sessionAffinityConfig": {
+      "clientIP": {
+        "timeoutSeconds": -1487653240
+      }
+    }
+  },
+  "status": {
+    "loadBalancer": {
+      "ingress": [
+        {
+          "ip": "34",
+          "hostname": "35"
+        }
+      ]
+    }
+  }
+}

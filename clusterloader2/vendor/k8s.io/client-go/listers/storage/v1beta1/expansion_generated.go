@@ -1,5 +1,6 @@
 /*
 Copyright The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +19,14 @@ limitations under the License.
 
 package v1beta1
 
+// CSIDriverListerExpansion allows custom methods to be added to
+// CSIDriverLister.
+type CSIDriverListerExpansion interface{}
+
+// CSINodeListerExpansion allows custom methods to be added to
+// CSINodeLister.
+type CSINodeListerExpansion interface{}
+
 // StorageClassListerExpansion allows custom methods to be added to
 // StorageClassLister.
 type StorageClassListerExpansion interface{}
@@ -25,3 +34,7 @@ type StorageClassListerExpansion interface{}
 // VolumeAttachmentListerExpansion allows custom methods to be added to
 // VolumeAttachmentLister.
 type VolumeAttachmentListerExpansion interface{}
+
+// VolumeAttachmentTenantListerExpansion allows custom methods to be added to
+// VolumeAttachmentTenantLister.
+type VolumeAttachmentTenantListerExpansion interface{}

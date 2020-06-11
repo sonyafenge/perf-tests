@@ -1,5 +1,6 @@
 /*
 Copyright 2016 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,6 +44,19 @@ func DefaultClusterScopedAttr(obj runtime.Object) (labels.Set, fields.Set, error
 	return labels.Set(metadata.GetLabels()), fieldSet, nil
 }
 
+func DefaultTenantScopedAttr(obj runtime.Object) (labels.Set, fields.Set, error) {
+	metadata, err := meta.Accessor(obj)
+	if err != nil {
+		return nil, nil, err
+	}
+	fieldSet := fields.Set{
+		"metadata.name":   metadata.GetName(),
+		"metadata.tenant": metadata.GetTenant(),
+	}
+
+	return labels.Set(metadata.GetLabels()), fieldSet, nil
+}
+
 func DefaultNamespaceScopedAttr(obj runtime.Object) (labels.Set, fields.Set, error) {
 	metadata, err := meta.Accessor(obj)
 	if err != nil {
@@ -51,6 +65,7 @@ func DefaultNamespaceScopedAttr(obj runtime.Object) (labels.Set, fields.Set, err
 	fieldSet := fields.Set{
 		"metadata.name":      metadata.GetName(),
 		"metadata.namespace": metadata.GetNamespace(),
+		"metadata.tenant":    metadata.GetTenant(),
 	}
 
 	return labels.Set(metadata.GetLabels()), fieldSet, nil
@@ -71,12 +86,13 @@ func (f AttrFunc) WithFieldMutation(fieldMutator FieldMutationFunc) AttrFunc {
 
 // SelectionPredicate is used to represent the way to select objects from api storage.
 type SelectionPredicate struct {
-	Label       labels.Selector
-	Field       fields.Selector
-	GetAttrs    AttrFunc
-	IndexFields []string
-	Limit       int64
-	Continue    string
+	Label               labels.Selector
+	Field               fields.Selector
+	GetAttrs            AttrFunc
+	IndexFields         []string
+	Limit               int64
+	Continue            string
+	AllowWatchBookmarks bool
 }
 
 // Matches returns true if the given object's labels and fields (as

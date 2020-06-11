@@ -1,5 +1,6 @@
 /*
 Copyright 2016 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,9 +29,11 @@ type ObjectMetaAccessor interface {
 
 // Object lets you work with object metadata from any of the versioned or
 // internal API objects. Attempting to set or retrieve a field on an object that does
-// not support that field (Name, UID, Namespace on lists) will be a no-op and return
+// not support that field (Name, UID, Tenant, Namespace on lists) will be a no-op and return
 // a default value.
 type Object interface {
+	GetTenant() string
+	SetTenant(tenant string)
 	GetNamespace() string
 	SetNamespace(namespace string)
 	GetName() string
@@ -39,6 +42,8 @@ type Object interface {
 	SetGenerateName(name string)
 	GetUID() types.UID
 	SetUID(uid types.UID)
+	GetHashKey() int64
+	SetHashKey(hashKey int64)
 	GetResourceVersion() string
 	SetResourceVersion(version string)
 	GetGeneration() int64
@@ -63,6 +68,8 @@ type Object interface {
 	SetOwnerReferences([]OwnerReference)
 	GetClusterName() string
 	SetClusterName(clusterName string)
+	GetManagedFields() []ManagedFieldsEntry
+	SetManagedFields(managedFields []ManagedFieldsEntry)
 }
 
 // ListMetaAccessor retrieves the list interface from an object
@@ -92,6 +99,8 @@ type ListInterface interface {
 	SetSelfLink(selfLink string)
 	GetContinue() string
 	SetContinue(c string)
+	GetRemainingItemCount() *int64
+	SetRemainingItemCount(c *int64)
 }
 
 // Type exposes the type and APIVersion of versioned or internal API objects.
@@ -103,12 +112,16 @@ type Type interface {
 	SetKind(kind string)
 }
 
+var _ ListInterface = &ListMeta{}
+
 func (meta *ListMeta) GetResourceVersion() string        { return meta.ResourceVersion }
 func (meta *ListMeta) SetResourceVersion(version string) { meta.ResourceVersion = version }
 func (meta *ListMeta) GetSelfLink() string               { return meta.SelfLink }
 func (meta *ListMeta) SetSelfLink(selfLink string)       { meta.SelfLink = selfLink }
 func (meta *ListMeta) GetContinue() string               { return meta.Continue }
 func (meta *ListMeta) SetContinue(c string)              { meta.Continue = c }
+func (meta *ListMeta) GetRemainingItemCount() *int64     { return meta.RemainingItemCount }
+func (meta *ListMeta) SetRemainingItemCount(c *int64)    { meta.RemainingItemCount = c }
 
 func (obj *TypeMeta) GetObjectKind() schema.ObjectKind { return obj }
 
@@ -126,6 +139,9 @@ func (obj *ListMeta) GetListMeta() ListInterface { return obj }
 
 func (obj *ObjectMeta) GetObjectMeta() Object { return obj }
 
+func (meta *ObjectMeta) GetTenant() string       { return meta.Tenant }
+func (meta *ObjectMeta) SetTenant(tenant string) { meta.Tenant = tenant }
+
 // Namespace implements metav1.Object for any object with an ObjectMeta typed field. Allows
 // fast, direct access to metadata fields for API objects.
 func (meta *ObjectMeta) GetNamespace() string                { return meta.Namespace }
@@ -136,6 +152,8 @@ func (meta *ObjectMeta) GetGenerateName() string             { return meta.Gener
 func (meta *ObjectMeta) SetGenerateName(generateName string) { meta.GenerateName = generateName }
 func (meta *ObjectMeta) GetUID() types.UID                   { return meta.UID }
 func (meta *ObjectMeta) SetUID(uid types.UID)                { meta.UID = uid }
+func (meta *ObjectMeta) GetHashKey() int64                   { return meta.HashKey }
+func (meta *ObjectMeta) SetHashKey(hashKey int64)            { meta.HashKey = hashKey }
 func (meta *ObjectMeta) GetResourceVersion() string          { return meta.ResourceVersion }
 func (meta *ObjectMeta) SetResourceVersion(version string)   { meta.ResourceVersion = version }
 func (meta *ObjectMeta) GetGeneration() int64                { return meta.Generation }
@@ -166,5 +184,9 @@ func (meta *ObjectMeta) GetOwnerReferences() []OwnerReference         { return m
 func (meta *ObjectMeta) SetOwnerReferences(references []OwnerReference) {
 	meta.OwnerReferences = references
 }
-func (meta *ObjectMeta) GetClusterName() string            { return meta.ClusterName }
-func (meta *ObjectMeta) SetClusterName(clusterName string) { meta.ClusterName = clusterName }
+func (meta *ObjectMeta) GetClusterName() string                 { return meta.ClusterName }
+func (meta *ObjectMeta) SetClusterName(clusterName string)      { meta.ClusterName = clusterName }
+func (meta *ObjectMeta) GetManagedFields() []ManagedFieldsEntry { return meta.ManagedFields }
+func (meta *ObjectMeta) SetManagedFields(managedFields []ManagedFieldsEntry) {
+	meta.ManagedFields = managedFields
+}

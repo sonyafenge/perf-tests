@@ -262,7 +262,7 @@ func (d *CachedDiscoveryClient) Invalidate() {
 // If discoveryCacheDir is empty, cached server resource data will be looked up in the current directory.
 // TODO(juanvallejo): the value of "--cache-dir" should be honored. Consolidate discoveryCacheDir with httpCacheDir
 // so that server resources and http-cache data are stored in the same location, provided via config flags.
-func NewCachedDiscoveryClientForConfig(config *restclient.Config, discoveryCacheDir, httpCacheDir string, ttl time.Duration) (*CachedDiscoveryClient, error) {
+func NewCachedDiscoveryClientForConfig(config *restclient.KubeConfig, discoveryCacheDir, httpCacheDir string, ttl time.Duration) (*CachedDiscoveryClient, error) {
 	if len(httpCacheDir) > 0 {
 		// update the given restconfig with a custom roundtripper that
 		// understands how to handle cache responses.

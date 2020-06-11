@@ -1,0 +1,85 @@
+{
+  "kind": "Event",
+  "apiVersion": "events.k8s.io/v1beta1",
+  "metadata": {
+    "name": "2",
+    "generateName": "3",
+    "tenant": "4",
+    "namespace": "5",
+    "selfLink": "6",
+    "uid": "ą飋īqJ枊a8衍`Ĩɘ.蘯6ċV夸e",
+    "hashKey": 2234230302359329354,
+    "resourceVersion": "16964250748386560239",
+    "generation": 5828590068104375683,
+    "creationTimestamp": null,
+    "deletionGracePeriodSeconds": 6797158496028726353,
+    "labels": {
+      "8": "9"
+    },
+    "annotations": {
+      "10": "11"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "12",
+        "kind": "13",
+        "name": "14",
+        "uid": "z廔ȇ{sŊƏ",
+        "hashKey": -3769286901598778062,
+        "controller": false,
+        "blockOwnerDeletion": true
+      }
+    ],
+    "finalizers": [
+      "15"
+    ],
+    "clusterName": "16",
+    "managedFields": [
+      {
+        "manager": "17",
+        "operation": "鐊唊飙Ş-U圴÷a/ɔ}摁(湗Ć]",
+        "apiVersion": "18",
+        "fields": {"19":{"20":null}}
+      }
+    ]
+  },
+  "eventTime": "2600-06-10T04:50:19.358488Z",
+  "series": {
+    "count": 2114329341,
+    "lastObservedTime": "1999-07-03T22:31:10.529225Z",
+    "state": "凗蓏Ŋ蛊ĉy緅縕\u003eŽ"
+  },
+  "reportingController": "25",
+  "reportingInstance": "26",
+  "action": "27",
+  "reason": "28",
+  "regarding": {
+    "kind": "29",
+    "namespace": "30",
+    "name": "31",
+    "uid": "ǅSǡƏS$+½H牗洝尿彀亞螩B峅",
+    "apiVersion": "32",
+    "resourceVersion": "33",
+    "fieldPath": "34",
+    "tenant": "35"
+  },
+  "related": {
+    "kind": "36",
+    "namespace": "37",
+    "name": "38",
+    "uid": "4%a鯿r",
+    "apiVersion": "39",
+    "resourceVersion": "40",
+    "fieldPath": "41",
+    "tenant": "42"
+  },
+  "note": "43",
+  "type": "44",
+  "deprecatedSource": {
+    "component": "45",
+    "host": "46"
+  },
+  "deprecatedFirstTimestamp": "2149-06-18T16:38:18Z",
+  "deprecatedLastTimestamp": "2567-05-09T03:50:37Z",
+  "deprecatedCount": 254375933
+}

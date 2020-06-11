@@ -1,0 +1,199 @@
+{
+  "kind": "PodStatusResult",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "2",
+    "generateName": "3",
+    "tenant": "4",
+    "namespace": "5",
+    "selfLink": "6",
+    "uid": "ą飋īqJ枊a8衍`Ĩɘ.蘯6ċV夸e",
+    "hashKey": 2234230302359329354,
+    "resourceVersion": "16964250748386560239",
+    "generation": 5828590068104375683,
+    "creationTimestamp": null,
+    "deletionGracePeriodSeconds": 6797158496028726353,
+    "labels": {
+      "8": "9"
+    },
+    "annotations": {
+      "10": "11"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "12",
+        "kind": "13",
+        "name": "14",
+        "uid": "z廔ȇ{sŊƏ",
+        "hashKey": -3769286901598778062,
+        "controller": false,
+        "blockOwnerDeletion": true
+      }
+    ],
+    "finalizers": [
+      "15"
+    ],
+    "clusterName": "16",
+    "managedFields": [
+      {
+        "manager": "17",
+        "operation": "鐊唊飙Ş-U圴÷a/ɔ}摁(湗Ć]",
+        "apiVersion": "18",
+        "fields": {"19":{"20":null}}
+      }
+    ]
+  },
+  "status": {
+    "phase": "ƗǸƢ6/ʕV",
+    "conditions": [
+      {
+        "type": "(ĿȊ甞谐颋ǅSǡƏS",
+        "status": "-Ǐ忄*齧獚敆Ȏțê",
+        "lastProbeTime": "2942-12-08T14:55:02Z",
+        "lastTransitionTime": "2763-08-05T14:40:52Z",
+        "reason": "25",
+        "message": "26"
+      }
+    ],
+    "message": "27",
+    "reason": "28",
+    "nominatedNodeName": "29",
+    "hostIP": "30",
+    "podIP": "31",
+    "initContainerStatuses": [
+      {
+        "name": "32",
+        "state": {
+          "waiting": {
+            "reason": "33",
+            "message": "34"
+          },
+          "running": {
+            "startedAt": "2399-02-06T09:57:06Z"
+          },
+          "terminated": {
+            "exitCode": -1487653240,
+            "signal": -1997863172,
+            "reason": "35",
+            "message": "36",
+            "startedAt": "2908-03-20T00:45:43Z",
+            "finishedAt": "2777-11-15T04:18:59Z",
+            "containerID": "37"
+          }
+        },
+        "lastState": {
+          "waiting": {
+            "reason": "38",
+            "message": "39"
+          },
+          "running": {
+            "startedAt": "2149-06-18T16:38:18Z"
+          },
+          "terminated": {
+            "exitCode": 254375933,
+            "signal": 523306325,
+            "reason": "40",
+            "message": "41",
+            "startedAt": "2874-05-09T23:28:59Z",
+            "finishedAt": "2516-08-23T06:28:28Z",
+            "containerID": "42"
+          }
+        },
+        "ready": true,
+        "restartCount": 1246233319,
+        "image": "43",
+        "imageID": "44",
+        "containerID": "45",
+        "resources": {
+          "limits": {
+            "cP$Iņɖ橙9": "481"
+          },
+          "requests": {
+            "ē ƕP喂ƈ斎AO6ĴC浔Ű壝ž(-": "135"
+          }
+        }
+      }
+    ],
+    "containerStatuses": [
+      {
+        "name": "46",
+        "state": {
+          "waiting": {
+            "reason": "47",
+            "message": "48"
+          },
+          "running": {
+            "startedAt": "2404-01-10T11:35:42Z"
+          },
+          "terminated": {
+            "exitCode": 672648281,
+            "signal": 829996972,
+            "reason": "49",
+            "message": "50",
+            "startedAt": "2561-02-20T13:40:00Z",
+            "finishedAt": "2153-05-01T22:00:29Z",
+            "containerID": "51"
+          }
+        },
+        "lastState": {
+          "waiting": {
+            "reason": "52",
+            "message": "53"
+          },
+          "running": {
+            "startedAt": "2574-11-21T16:30:36Z"
+          },
+          "terminated": {
+            "exitCode": -1829416233,
+            "signal": -1634648034,
+            "reason": "54",
+            "message": "55",
+            "startedAt": "2776-10-09T17:33:23Z",
+            "finishedAt": "2552-08-29T13:02:38Z",
+            "containerID": "56"
+          }
+        },
+        "ready": true,
+        "restartCount": 1088264954,
+        "image": "57",
+        "imageID": "58",
+        "containerID": "59",
+        "resources": {
+          "limits": {
+            "%ƎÜ掸8½£.vǴʌ鴜Ł%ŨȈ\u003eŅ": "747"
+          },
+          "requests": {
+            "": "45"
+          }
+        }
+      }
+    ],
+    "qosClass": "昃2Ō¾\\ĒP鄸靇杧ž譋娲瘹ɭ",
+    "virtualMachineStatus": {
+      "name": "60",
+      "virtualMachineId": "61",
+      "imageId": "62",
+      "image": "63",
+      "state": "ɚɎ(dɅ囥糷磩窮秳ķ蟒",
+      "lastTerminationState": "QZ{ʁgɸ=ǤÆ",
+      "powerState": "?讦ĭÐ",
+      "restartCount": 1825936739,
+      "resources": {
+        "limits": {
+          "龷ȪÆl": "244"
+        },
+        "requests": {
+          "鏮嵒ƫS捕ɷD¡轫n": "583"
+        }
+      }
+    },
+    "nicStatuses": [
+      {
+        "name": "64",
+        "portID": "65",
+        "state": "Ü郀",
+        "reason": "66"
+      }
+    ]
+  }
+}

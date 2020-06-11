@@ -1,5 +1,6 @@
 /*
 Copyright 2016 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,12 +37,13 @@ type ResourceInterface interface {
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
 	Get(name string, options metav1.GetOptions, subresources ...string) (*unstructured.Unstructured, error)
 	List(opts metav1.ListOptions) (*unstructured.UnstructuredList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, options metav1.UpdateOptions, subresources ...string) (*unstructured.Unstructured, error)
+	Watch(opts metav1.ListOptions) watch.AggregatedWatchInterface
+	Patch(name string, pt types.PatchType, data []byte, options metav1.PatchOptions, subresources ...string) (*unstructured.Unstructured, error)
 }
 
 type NamespaceableResourceInterface interface {
 	Namespace(string) ResourceInterface
+	NamespaceWithMultiTenancy(string, string) ResourceInterface
 	ResourceInterface
 }
 

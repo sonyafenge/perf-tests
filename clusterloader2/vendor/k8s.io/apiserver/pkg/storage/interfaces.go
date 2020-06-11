@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +20,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"go.etcd.io/etcd/clientv3"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
@@ -40,10 +42,12 @@ type Versioner interface {
 	// from database.
 	UpdateObject(obj runtime.Object, resourceVersion uint64) error
 	// UpdateList sets the resource version into an API list object. Returns an error if the object
-	// cannot be updated correctly. May return nil if the requested object does not need metadata
-	// from database. continueValue is optional and indicates that more results are available if
-	// the client passes that value to the server in a subsequent call.
-	UpdateList(obj runtime.Object, resourceVersion uint64, continueValue string) error
+	// cannot be updated correctly. May return nil if the requested object does not need metadata from
+	// database. continueValue is optional and indicates that more results are available if the client
+	// passes that value to the server in a subsequent call. remainingItemCount indicates the number
+	// of remaining objects if the list is partial. The remainingItemCount field is omitted during
+	// serialization if it is set to nil.
+	UpdateList(obj runtime.Object, resourceVersion uint64, continueValue string, remainingItemCount *int64) error
 	// PrepareObjectForStorage should set SelfLink and ResourceVersion to the empty value. Should
 	// return an error if the specified object cannot be updated.
 	PrepareObjectForStorage(obj runtime.Object) error
@@ -91,13 +95,26 @@ var Everything = SelectionPredicate{
 // Pass an UpdateFunc to Interface.GuaranteedUpdate to make an update
 // that is guaranteed to succeed.
 // See the comment for GuaranteedUpdate for more details.
-type UpdateFunc func(input runtime.Object, res ResponseMeta) (output runtime.Object, ttl *uint64, err error)
+type UpdateFunc func(input runtime.Object, res ResponseMeta) (output runtime.Object, ttl *uint64, updatettl *uint64, err error)
+
+// ValidateObjectFunc is a function to act on a given object. An error may be returned
+// if the hook cannot be completed. The function may NOT transform the provided
+// object.
+type ValidateObjectFunc func(obj runtime.Object) error
+
+// ValidateAllObjectFunc is a "admit everything" instance of ValidateObjectFunc.
+func ValidateAllObjectFunc(obj runtime.Object) error {
+	return nil
+}
 
 // Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out.
 type Preconditions struct {
 	// Specifies the target UID.
 	// +optional
 	UID *types.UID `json:"uid,omitempty"`
+	// Specifies the target ResourceVersion
+	// +optional
+	ResourceVersion *string `json:"resourceVersion,omitempty"`
 }
 
 // NewUIDPreconditions returns a Preconditions with UID set.
@@ -125,8 +142,14 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 			objMeta.GetUID())
 		return NewInvalidObjError(key, err)
 	}
+	if p.ResourceVersion != nil && *p.ResourceVersion != objMeta.GetResourceVersion() {
+		err := fmt.Sprintf(
+			"Precondition failed: ResourceVersion in precondition: %v, ResourceVersion in object meta: %v",
+			*p.ResourceVersion,
+			objMeta.GetResourceVersion())
+		return NewInvalidObjError(key, err)
+	}
 	return nil
-
 }
 
 // Interface offers a common interface for object marshaling/unmarshaling operations and
@@ -142,7 +165,7 @@ type Interface interface {
 
 	// Delete removes the specified key and returns the value that existed at that spot.
 	// If key didn't exist, it will return NotFound storage error.
-	Delete(ctx context.Context, key string, out runtime.Object, preconditions *Preconditions) error
+	Delete(ctx context.Context, key string, out runtime.Object, preconditions *Preconditions, validateDeletion ValidateObjectFunc) error
 
 	// Watch begins watching the specified key. Events are decoded into API objects,
 	// and any items selected by 'p' are sent down to returned watch.Interface.
@@ -151,7 +174,7 @@ type Interface interface {
 	// (e.g. reconnecting without missing any updates).
 	// If resource version is "0", this interface will get current object at given key
 	// and send it in an "ADDED" event, before watch starts.
-	Watch(ctx context.Context, key string, resourceVersion string, p SelectionPredicate) (watch.Interface, error)
+	Watch(ctx context.Context, key string, resourceVersion string, p SelectionPredicate) watch.AggregatedWatchInterface
 
 	// WatchList begins watching the specified key's items. Items are decoded into API
 	// objects and any item selected by 'p' are sent down to returned watch.Interface.
@@ -160,7 +183,7 @@ type Interface interface {
 	// (e.g. reconnecting without missing any updates).
 	// If resource version is "0", this interface will list current objects directory defined by key
 	// and send them in "ADDED" events, before watch starts.
-	WatchList(ctx context.Context, key string, resourceVersion string, p SelectionPredicate) (watch.Interface, error)
+	WatchList(ctx context.Context, key string, resourceVersion string, p SelectionPredicate) watch.AggregatedWatchInterface
 
 	// Get unmarshals json found at key into objPtr. On a not found error, will either
 	// return a zero object of the requested type, or an error, depending on ignoreNotFound.
@@ -210,12 +233,34 @@ type Interface interface {
 	//       // Return the modified object - return an error to stop iterating. Return
 	//       // a uint64 to alter the TTL on the object, or nil to keep it the same value.
 	//       return cur, nil, nil
-	//    }
-	// })
+	//    },
+	// )
 	GuaranteedUpdate(
 		ctx context.Context, key string, ptrToType runtime.Object, ignoreNotFound bool,
 		precondtions *Preconditions, tryUpdate UpdateFunc, suggestion ...runtime.Object) error
 
 	// Count returns number of different entries under the key (generally being path prefix).
 	Count(key string) (int64, error)
+}
+
+// StorageClusterInterface allows backend storage connection to be updated
+type StorageClusterInterface interface {
+	// Support original storage interface functions
+	Interface
+
+	// Add a new backend storage client for clusterId
+	AddDataClient(c *clientv3.Client, clusterId string) error
+
+	// Update the new backend storage client for clusterId
+	UpdateDataClient(c *clientv3.Client, clusterId string) error
+
+	// Delete backend client for clusterId
+	DeleteDataClient(clusterId string)
+}
+
+// Interval defines a left closed Begin bound and a right open End bound.
+// If Begin is empty, it is left unbounded.
+// If End is empty, it is right unbounded.
+type Interval struct {
+	Begin, End string
 }

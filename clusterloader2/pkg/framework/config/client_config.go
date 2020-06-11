@@ -36,7 +36,7 @@ const (
 )
 
 // PrepareConfig creates and initializes client config.
-func PrepareConfig(path string) (*restclient.Config, error) {
+func PrepareConfig(path string) (*restclient.KubeConfig, error) {
 	config, err := loadConfig(path)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func restclientConfig(path string) (*clientcmdapi.Config, error) {
 	return c, nil
 }
 
-func loadConfig(path string) (*restclient.Config, error) {
+func loadConfig(path string) (*restclient.KubeConfig, error) {
 	c, err := restclientConfig(path)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func loadConfig(path string) (*restclient.Config, error) {
 	return clientcmd.NewDefaultClientConfig(*c, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
 
-func initializeWithDefaults(config *restclient.Config) error {
+func initializeWithDefaults(config *restclient.KubeConfig) error {
 	config.ContentType = contentType
 	config.QPS = qps
 	config.Burst = burst

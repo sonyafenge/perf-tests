@@ -1,0 +1,298 @@
+{
+  "kind": "PersistentVolume",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "2",
+    "generateName": "3",
+    "tenant": "4",
+    "namespace": "5",
+    "selfLink": "6",
+    "uid": "ą飋īqJ枊a8衍`Ĩɘ.蘯6ċV夸e",
+    "hashKey": 2234230302359329354,
+    "resourceVersion": "16964250748386560239",
+    "generation": 5828590068104375683,
+    "creationTimestamp": null,
+    "deletionGracePeriodSeconds": 6797158496028726353,
+    "labels": {
+      "8": "9"
+    },
+    "annotations": {
+      "10": "11"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "12",
+        "kind": "13",
+        "name": "14",
+        "uid": "z廔ȇ{sŊƏ",
+        "hashKey": -3769286901598778062,
+        "controller": false,
+        "blockOwnerDeletion": true
+      }
+    ],
+    "finalizers": [
+      "15"
+    ],
+    "clusterName": "16",
+    "managedFields": [
+      {
+        "manager": "17",
+        "operation": "鐊唊飙Ş-U圴÷a/ɔ}摁(湗Ć]",
+        "apiVersion": "18",
+        "fields": {"19":{"20":null}}
+      }
+    ]
+  },
+  "spec": {
+    "capacity": {
+      "脽ěĂ凗蓏Ŋ蛊ĉy緅縕": "57"
+    },
+    "gcePersistentDisk": {
+      "pdName": "25",
+      "fsType": "26",
+      "partition": 1035515117,
+      "readOnly": true
+    },
+    "awsElasticBlockStore": {
+      "volumeID": "27",
+      "fsType": "28",
+      "partition": -321835912,
+      "readOnly": true
+    },
+    "hostPath": {
+      "path": "29",
+      "type": "狱³-Ǐ忄*齧獚"
+    },
+    "glusterfs": {
+      "endpoints": "30",
+      "path": "31",
+      "endpointsNamespace": "32"
+    },
+    "nfs": {
+      "server": "33",
+      "path": "34",
+      "readOnly": true
+    },
+    "rbd": {
+      "monitors": [
+        "35"
+      ],
+      "image": "36",
+      "fsType": "37",
+      "pool": "38",
+      "user": "39",
+      "keyring": "40",
+      "secretRef": {
+        "name": "41",
+        "namespace": "42"
+      },
+      "readOnly": true
+    },
+    "iscsi": {
+      "targetPortal": "43",
+      "iqn": "44",
+      "lun": -21009133,
+      "iscsiInterface": "45",
+      "fsType": "46",
+      "readOnly": true,
+      "portals": [
+        "47"
+      ],
+      "secretRef": {
+        "name": "48",
+        "namespace": "49"
+      },
+      "initiatorName": "50"
+    },
+    "cinder": {
+      "volumeID": "51",
+      "fsType": "52",
+      "readOnly": true,
+      "secretRef": {
+        "name": "53",
+        "namespace": "54"
+      }
+    },
+    "cephfs": {
+      "monitors": [
+        "55"
+      ],
+      "path": "56",
+      "user": "57",
+      "secretFile": "58",
+      "secretRef": {
+        "name": "59",
+        "namespace": "60"
+      }
+    },
+    "fc": {
+      "targetWWNs": [
+        "61"
+      ],
+      "lun": -655946460,
+      "fsType": "62",
+      "wwids": [
+        "63"
+      ]
+    },
+    "flocker": {
+      "datasetName": "64",
+      "datasetUUID": "65"
+    },
+    "flexVolume": {
+      "driver": "66",
+      "fsType": "67",
+      "secretRef": {
+        "name": "68",
+        "namespace": "69"
+      },
+      "options": {
+        "70": "71"
+      }
+    },
+    "azureFile": {
+      "secretName": "72",
+      "shareName": "73",
+      "readOnly": true,
+      "secretNamespace": "74"
+    },
+    "vsphereVolume": {
+      "volumePath": "75",
+      "fsType": "76",
+      "storagePolicyName": "77",
+      "storagePolicyID": "78"
+    },
+    "quobyte": {
+      "registry": "79",
+      "volume": "80",
+      "user": "81",
+      "group": "82",
+      "tenant": "83"
+    },
+    "azureDisk": {
+      "diskName": "84",
+      "diskURI": "85",
+      "cachingMode": "rȮO励鹗塢ē ƕP喂ƈ斎AO6ĴC",
+      "fsType": "86",
+      "readOnly": false,
+      "kind": "壝"
+    },
+    "photonPersistentDisk": {
+      "pdID": "87",
+      "fsType": "88"
+    },
+    "portworxVolume": {
+      "volumeID": "89",
+      "fsType": "90"
+    },
+    "scaleIO": {
+      "gateway": "91",
+      "system": "92",
+      "secretRef": {
+        "name": "93",
+        "namespace": "94"
+      },
+      "sslEnabled": true,
+      "protectionDomain": "95",
+      "storagePool": "96",
+      "storageMode": "97",
+      "volumeName": "98",
+      "fsType": "99",
+      "readOnly": true
+    },
+    "local": {
+      "path": "100",
+      "fsType": "101"
+    },
+    "storageos": {
+      "volumeName": "102",
+      "volumeNamespace": "103",
+      "fsType": "104",
+      "readOnly": true,
+      "secretRef": {
+        "kind": "105",
+        "namespace": "106",
+        "name": "107",
+        "uid": "?øēƺ魋Ď儇击3ƆìQ",
+        "apiVersion": "108",
+        "resourceVersion": "109",
+        "fieldPath": "110",
+        "tenant": "111"
+      }
+    },
+    "csi": {
+      "driver": "112",
+      "volumeHandle": "113",
+      "fsType": "114",
+      "volumeAttributes": {
+        "115": "116"
+      },
+      "controllerPublishSecretRef": {
+        "name": "117",
+        "namespace": "118"
+      },
+      "nodeStageSecretRef": {
+        "name": "119",
+        "namespace": "120"
+      },
+      "nodePublishSecretRef": {
+        "name": "121",
+        "namespace": "122"
+      },
+      "controllerExpandSecretRef": {
+        "name": "123",
+        "namespace": "124"
+      }
+    },
+    "accessModes": [
+      "£.vǴʌ鴜Ł%Ũ"
+    ],
+    "claimRef": {
+      "kind": "125",
+      "namespace": "126",
+      "name": "127",
+      "uid": "\u003eŅ£趕ã/鈱$-议}ȧ外ĺ",
+      "apiVersion": "128",
+      "resourceVersion": "129",
+      "fieldPath": "130",
+      "tenant": "131"
+    },
+    "persistentVolumeReclaimPolicy": "ž譋娲瘹ɭȊɚɎ(dɅ囥糷",
+    "storageClassName": "132",
+    "mountOptions": [
+      "133"
+    ],
+    "volumeMode": "圬剴扲ȿQZ{ʁgɸ=ǤÆ碛,1ZƜ/",
+    "nodeAffinity": {
+      "required": {
+        "nodeSelectorTerms": [
+          {
+            "matchExpressions": [
+              {
+                "key": "134",
+                "operator": "廄裭4懙鏮嵒ƫS捕ɷD¡轫n(",
+                "values": [
+                  "135"
+                ]
+              }
+            ],
+            "matchFields": [
+              {
+                "key": "136",
+                "operator": "郀叚Fi皬择,Q捇ȸ{+ɸ殁",
+                "values": [
+                  "137"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "phase": "a縳讋ɮ衺勽Ƙq/Ź u衲\u003c¿燥ǖ_è",
+    "message": "138",
+    "reason": "139"
+  }
+}

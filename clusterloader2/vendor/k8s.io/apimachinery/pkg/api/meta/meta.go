@@ -1,5 +1,6 @@
 /*
 Copyright 2014 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,14 +21,12 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/klog"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	metav1beta1 "k8s.io/apimachinery/pkg/apis/meta/v1beta1"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 // errNotList is returned when an object implements the Object style interfaces but not the List style
@@ -115,18 +114,20 @@ func Accessor(obj interface{}) (metav1.Object, error) {
 
 // AsPartialObjectMetadata takes the metav1 interface and returns a partial object.
 // TODO: consider making this solely a conversion action.
-func AsPartialObjectMetadata(m metav1.Object) *metav1beta1.PartialObjectMetadata {
+func AsPartialObjectMetadata(m metav1.Object) *metav1.PartialObjectMetadata {
 	switch t := m.(type) {
 	case *metav1.ObjectMeta:
-		return &metav1beta1.PartialObjectMetadata{ObjectMeta: *t}
+		return &metav1.PartialObjectMetadata{ObjectMeta: *t}
 	default:
-		return &metav1beta1.PartialObjectMetadata{
+		return &metav1.PartialObjectMetadata{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:                       m.GetName(),
 				GenerateName:               m.GetGenerateName(),
+				Tenant:                     m.GetTenant(),
 				Namespace:                  m.GetNamespace(),
 				SelfLink:                   m.GetSelfLink(),
 				UID:                        m.GetUID(),
+				HashKey:                    m.GetHashKey(),
 				ResourceVersion:            m.GetResourceVersion(),
 				Generation:                 m.GetGeneration(),
 				CreationTimestamp:          m.GetCreationTimestamp(),
@@ -138,6 +139,7 @@ func AsPartialObjectMetadata(m metav1.Object) *metav1beta1.PartialObjectMetadata
 				Finalizers:                 m.GetFinalizers(),
 				ClusterName:                m.GetClusterName(),
 				Initializers:               m.GetInitializers(),
+				ManagedFields:              m.GetManagedFields(),
 			},
 		}
 	}
@@ -225,6 +227,23 @@ func (resourceAccessor) APIVersion(obj runtime.Object) (string, error) {
 
 func (resourceAccessor) SetAPIVersion(obj runtime.Object, version string) error {
 	objectAccessor{obj}.SetAPIVersion(version)
+	return nil
+}
+
+func (resourceAccessor) Tenant(obj runtime.Object) (string, error) {
+	accessor, err := Accessor(obj)
+	if err != nil {
+		return "", err
+	}
+	return accessor.GetTenant(), nil
+}
+
+func (resourceAccessor) SetTenant(obj runtime.Object, tenant string) error {
+	accessor, err := Accessor(obj)
+	if err != nil {
+		return err
+	}
+	accessor.SetTenant(tenant)
 	return nil
 }
 
@@ -446,6 +465,7 @@ func setOwnerReference(v reflect.Value, o *metav1.OwnerReference) error {
 // genericAccessor contains pointers to strings that can modify an arbitrary
 // struct and implements the Accessor interface.
 type genericAccessor struct {
+	tenant            *string
 	namespace         *string
 	name              *string
 	generateName      *string
@@ -460,6 +480,20 @@ type genericAccessor struct {
 	annotations       *map[string]string
 	ownerReferences   reflect.Value
 	finalizers        *[]string
+}
+
+func (a genericAccessor) GetTenant() string {
+	if a.tenant == nil {
+		return ""
+	}
+	return *a.tenant
+}
+
+func (a genericAccessor) SetTenant(tenant string) {
+	if a.tenant == nil {
+		return
+	}
+	*a.tenant = tenant
 }
 
 func (a genericAccessor) GetNamespace() string {

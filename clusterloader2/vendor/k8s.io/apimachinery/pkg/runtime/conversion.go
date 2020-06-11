@@ -1,5 +1,6 @@
 /*
 Copyright 2014 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,17 +28,24 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 )
 
-// DefaultMetaV1FieldSelectorConversion auto-accepts metav1 values for name and namespace.
-// A cluster scoped resource specifying namespace empty works fine and specifying a particular
-// namespace will return no results, as expected.
+// DefaultMetaV1FieldSelectorConversion auto-accepts metav1 values for name, namespace and tenant.
+// A cluster scoped resource specifying namespace and tenant empty works fine and specifying a particular
+// namespace or tenant will return no results, as expected.
 func DefaultMetaV1FieldSelectorConversion(label, value string) (string, string, error) {
 	switch label {
 	case "metadata.name":
 		return label, value, nil
 	case "metadata.namespace":
 		return label, value, nil
+	case "metadata.tenant":
+		return label, value, nil
+	case "metadata.hashkey":
+		return label, value, nil
 	default:
-		return "", "", fmt.Errorf("%q is not a known field selector: only %q, %q", label, "metadata.name", "metadata.namespace")
+		if strings.HasPrefix(label, "metadata.ownerReferences.hashkey.") {
+			return label, value, nil
+		}
+		return "", "", fmt.Errorf("%q is not a known field selector: only %q, %q, %q, %q, %q", label, "metadata.name", "metadata.namespace", "metadata.tenant", "metadata.hashkey", "metadata.ownerReferences.hashkey.*")
 	}
 }
 

@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +25,13 @@ import (
 )
 
 const (
+	// TenantAll is the default argument to specify on a context when you want to list or filter resources across all tenants
+	TenantAll string = ""
+	// Sometimes we need to explicitly indicate the operation targets at all the tenants, not the empty string of the above TenantAll
+	TenantAllExplicit = "all"
+	// TenantSystem is the system tenant where we place system components.
+	TenantSystem string = "system"
+
 	// NamespaceDefault means the object is in the default namespace which is applied when not specified by clients
 	NamespaceDefault string = "default"
 	// NamespaceAll is the default argument to specify on a context when you want to list or filter resources across all namespaces
@@ -151,6 +159,9 @@ type VolumeSource struct {
 	// StorageOS represents a StorageOS volume attached and mounted on Kubernetes nodes.
 	// +optional
 	StorageOS *StorageOSVolumeSource `json:"storageos,omitempty" protobuf:"bytes,27,opt,name=storageos"`
+	// CSI (Container Storage Interface) represents storage that is handled by an external CSI driver (Alpha feature).
+	// +optional
+	CSI *CSIVolumeSource `json:"csi,omitempty" protobuf:"bytes,28,opt,name=csi"`
 }
 
 // PersistentVolumeClaimVolumeSource references the user's PVC in the same namespace.
@@ -248,7 +259,7 @@ type PersistentVolumeSource struct {
 	// More info: https://releases.k8s.io/HEAD/examples/volumes/storageos/README.md
 	// +optional
 	StorageOS *StorageOSPersistentVolumeSource `json:"storageos,omitempty" protobuf:"bytes,21,opt,name=storageos"`
-	// CSI represents storage that handled by an external CSI driver (Beta feature).
+	// CSI represents storage that is handled by an external CSI driver (Beta feature).
 	// +optional
 	CSI *CSIPersistentVolumeSource `json:"csi,omitempty" protobuf:"bytes,22,opt,name=csi"`
 }
@@ -523,7 +534,7 @@ type PersistentVolumeClaimStatus struct {
 type PersistentVolumeAccessMode string
 
 const (
-	// can be mounted read/write mode to exactly 1 host
+	// can be mounted in read/write mode to exactly 1 host
 	ReadWriteOnce PersistentVolumeAccessMode = "ReadWriteOnce"
 	// can be mounted in read-only mode to many hosts
 	ReadOnlyMany PersistentVolumeAccessMode = "ReadOnlyMany"
@@ -955,6 +966,11 @@ type QuobyteVolumeSource struct {
 	// Default is no group
 	// +optional
 	Group string `json:"group,omitempty" protobuf:"bytes,5,opt,name=group"`
+
+	// Tenant owning the given Quobyte volume in the Backend
+	// Used with dynamically provisioned Quobyte volumes, value is set by the plugin
+	// +optional
+	Tenant string `json:"tenant,omitempty" protobuf:"bytes,6,opt,name=tenant"`
 }
 
 // FlexPersistentVolumeSource represents a generic persistent volume resource that is
@@ -1086,7 +1102,7 @@ type SecretVolumeSource struct {
 	// mode, like fsGroup, and the result can be other mode bits set.
 	// +optional
 	DefaultMode *int32 `json:"defaultMode,omitempty" protobuf:"bytes,3,opt,name=defaultMode"`
-	// Specify whether the Secret or it's keys must be defined
+	// Specify whether the Secret or its keys must be defined
 	// +optional
 	Optional *bool `json:"optional,omitempty" protobuf:"varint,4,opt,name=optional"`
 }
@@ -1512,7 +1528,7 @@ type ConfigMapVolumeSource struct {
 	// mode, like fsGroup, and the result can be other mode bits set.
 	// +optional
 	DefaultMode *int32 `json:"defaultMode,omitempty" protobuf:"varint,3,opt,name=defaultMode"`
-	// Specify whether the ConfigMap or it's keys must be defined
+	// Specify whether the ConfigMap or its keys must be defined
 	// +optional
 	Optional *bool `json:"optional,omitempty" protobuf:"varint,4,opt,name=optional"`
 }
@@ -1539,7 +1555,7 @@ type ConfigMapProjection struct {
 	// relative and may not contain the '..' path or start with '..'.
 	// +optional
 	Items []KeyToPath `json:"items,omitempty" protobuf:"bytes,2,rep,name=items"`
-	// Specify whether the ConfigMap or it's keys must be defined
+	// Specify whether the ConfigMap or its keys must be defined
 	// +optional
 	Optional *bool `json:"optional,omitempty" protobuf:"varint,4,opt,name=optional"`
 }
@@ -1684,6 +1700,46 @@ type CSIPersistentVolumeSource struct {
 	// secret object contains more than one secret, all secrets are passed.
 	// +optional
 	NodePublishSecretRef *SecretReference `json:"nodePublishSecretRef,omitempty" protobuf:"bytes,8,opt,name=nodePublishSecretRef"`
+
+	// ControllerExpandSecretRef is a reference to the secret object containing
+	// sensitive information to pass to the CSI driver to complete the CSI
+	// ControllerExpandVolume call.
+	// This is an alpha field and requires enabling ExpandCSIVolumes feature gate.
+	// This field is optional, and may be empty if no secret is required. If the
+	// secret object contains more than one secret, all secrets are passed.
+	// +optional
+	ControllerExpandSecretRef *SecretReference `json:"controllerExpandSecretRef,omitempty" protobuf:"bytes,9,opt,name=controllerExpandSecretRef"`
+}
+
+// Represents a source location of a volume to mount, managed by an external CSI driver
+type CSIVolumeSource struct {
+	// Driver is the name of the CSI driver that handles this volume.
+	// Consult with your admin for the correct name as registered in the cluster.
+	Driver string `json:"driver" protobuf:"bytes,1,opt,name=driver"`
+
+	// Specifies a read-only configuration for the volume.
+	// Defaults to false (read/write).
+	// +optional
+	ReadOnly *bool `json:"readOnly,omitempty" protobuf:"varint,2,opt,name=readOnly"`
+
+	// Filesystem type to mount. Ex. "ext4", "xfs", "ntfs".
+	// If not provided, the empty value is passed to the associated CSI driver
+	// which will determine the default filesystem to apply.
+	// +optional
+	FSType *string `json:"fsType,omitempty" protobuf:"bytes,3,opt,name=fsType"`
+
+	// VolumeAttributes stores driver-specific properties that are passed to the CSI
+	// driver. Consult your driver's documentation for supported values.
+	// +optional
+	VolumeAttributes map[string]string `json:"volumeAttributes,omitempty" protobuf:"bytes,4,rep,name=volumeAttributes"`
+
+	// NodePublishSecretRef is a reference to the secret object containing
+	// sensitive information to pass to the CSI driver to complete the CSI
+	// NodePublishVolume and NodeUnpublishVolume calls.
+	// This field is optional, and  may be empty if no secret is required. If the
+	// secret object contains more than one secret, all secret references are passed.
+	// +optional
+	NodePublishSecretRef *LocalObjectReference `json:"nodePublishSecretRef,omitempty" protobuf:"bytes,5,opt,name=nodePublishSecretRef"`
 }
 
 // ContainerPort represents a network port in a single container.
@@ -1732,6 +1788,13 @@ type VolumeMount struct {
 	// This field is beta in 1.10.
 	// +optional
 	MountPropagation *MountPropagationMode `json:"mountPropagation,omitempty" protobuf:"bytes,5,opt,name=mountPropagation,casttype=MountPropagationMode"`
+	// Expanded path within the volume from which the container's volume should be mounted.
+	// Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
+	// Defaults to "" (volume's root).
+	// SubPathExpr and SubPath are mutually exclusive.
+	// This field is beta in 1.15.
+	// +optional
+	SubPathExpr string `json:"subPathExpr,omitempty" protobuf:"bytes,6,opt,name=subPathExpr"`
 }
 
 // MountPropagationMode describes mount propagation.
@@ -1834,7 +1897,7 @@ type ConfigMapKeySelector struct {
 	LocalObjectReference `json:",inline" protobuf:"bytes,1,opt,name=localObjectReference"`
 	// The key to select.
 	Key string `json:"key" protobuf:"bytes,2,opt,name=key"`
-	// Specify whether the ConfigMap or it's key must be defined
+	// Specify whether the ConfigMap or its key must be defined
 	// +optional
 	Optional *bool `json:"optional,omitempty" protobuf:"varint,3,opt,name=optional"`
 }
@@ -1845,7 +1908,7 @@ type SecretKeySelector struct {
 	LocalObjectReference `json:",inline" protobuf:"bytes,1,opt,name=localObjectReference"`
 	// The key of the secret to select from.  Must be a valid secret key.
 	Key string `json:"key" protobuf:"bytes,2,opt,name=key"`
-	// Specify whether the Secret or it's key must be defined
+	// Specify whether the Secret or its key must be defined
 	// +optional
 	Optional *bool `json:"optional,omitempty" protobuf:"varint,3,opt,name=optional"`
 }
@@ -1991,6 +2054,43 @@ const (
 	PullIfNotPresent PullPolicy = "IfNotPresent"
 )
 
+// ContainerResizePolicy describes how container resources resize is handled.
+// Only one of the following container resize policies may be specified.
+// If none of the following policies is specified, it defaults to NoRestart.
+type ContainerResizePolicy string
+
+// These are the valid container resize policies
+// NoRestart policy tells Kubelet to call UpdateContainerResources CRI API to resize
+// the resources without restarting the container. This is the default behavior.
+// RestartContainer policy tells Kubelet to stop and start the container when new
+// resources are applied. This is needed for legacy applications e.g. java apps
+// using -xmxN flag which are unable to use resized memory without restarting.
+const (
+	// Resize the container in-place without restarting it.
+	NoRestart ContainerResizePolicy = "NoRestart"
+	// Resize the container in-place by restarting it after resize.
+	RestartContainer ContainerResizePolicy = "RestartContainer"
+)
+
+// ResizePolicy represents the resource resize policy for a single container.
+type ResizePolicy struct {
+	// Name of the resource type to which this resize policy applies.
+	// Supported values: cpu, memory.
+	ResourceName ResourceName `json:"resourceName" protobuf:"bytes,1,opt,name=resourceName,casttype=ResourceName"`
+	// Container resize policy applicable to the above resource.
+	Policy ContainerResizePolicy `json:"policy" protobuf:"bytes,2,opt,name=policy,casttype=ContainerResizePolicy"`
+}
+
+// PreemptionPolicy describes a policy for if/when to preempt a pod.
+type PreemptionPolicy string
+
+const (
+	// PreemptLowerPriority means that pod can preempt other pods with lower priority.
+	PreemptLowerPriority PreemptionPolicy = "PreemptLowerPriority"
+	// PreemptNever means that pod never preempts other pods with lower priority.
+	PreemptNever PreemptionPolicy = "Never"
+)
+
 // TerminationMessagePolicy describes how termination messages are retrieved from a container.
 type TerminationMessagePolicy string
 
@@ -2035,6 +2135,30 @@ const (
 	// TerminationMessagePathDefault means the default path to capture the application termination message running in a container
 	TerminationMessagePathDefault string = "/dev/termination-log"
 )
+
+// Colection of fields that are common to Container and VirtualMachine objects
+type CommonInfo struct {
+	// Required. Name of the container specified as a DNS_LABEL.
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// Image name.
+	// +optional
+	Image string `json:"image,omitempty" protobuf:"bytes,2,opt,name=image"`
+	// Compute Resources required by this container.
+	// +optional
+	Resources ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,3,opt,name=resources"`
+	// Node compute resources allocated to the container.
+	// +optional
+	ResourcesAllocated ResourceList `json:"resourcesAllocated,omitempty" protobuf:"bytes,6,rep,name=resourcesAllocated,casttype=ResourceList,castkey=ResourceName"`
+	// Resources resize policy for the container.
+	// +optional
+	ResizePolicy []ResizePolicy `json:"resizePolicy,omitempty" protobuf:"bytes,7,rep,name=resizePolicy"`
+	// Pod volumes to mount into the workload's filesystem.
+	// +optional
+	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty" protobuf:"bytes,4,opt,name=volumeMounts"`
+	// Image pull policy.
+	// +optional
+	ImagePullPolicy PullPolicy `json:"imagePullPolicy,omitempty" protobuf:"bytes,5,opt,name=imagePullPolicy,casttype=PullPolicy"`
+}
 
 // A single application container that you want to run within a pod.
 type Container struct {
@@ -2103,10 +2227,17 @@ type Container struct {
 	// +patchStrategy=merge
 	Env []EnvVar `json:"env,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,7,rep,name=env"`
 	// Compute Resources required by this container.
-	// Cannot be updated.
-	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ //TODO: Mutable - update doc
 	// +optional
 	Resources ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,8,opt,name=resources"`
+	// Node compute resources allocated to the container.
+	// More info: TODO: update doc
+	// +optional
+	ResourcesAllocated ResourceList `json:"resourcesAllocated,omitempty" protobuf:"bytes,22,rep,name=resourcesAllocated,casttype=ResourceList,castkey=ResourceName"`
+	// Resources resize policy for the container.
+	// More info: TODO: update doc
+	// +optional
+	ResizePolicy []ResizePolicy `json:"resizePolicy,omitempty" protobuf:"bytes,23,rep,name=resizePolicy"`
 	// Pod volumes to mount into the container's filesystem.
 	// Cannot be updated.
 	// +optional
@@ -2189,6 +2320,108 @@ type Container struct {
 	TTY bool `json:"tty,omitempty" protobuf:"varint,18,opt,name=tty"`
 }
 
+// Network interface type used in the VM workload
+// Nic info will be provided at the pod level so they can be used by both Container and VM workload
+type Nic struct {
+	// The interface name to be used in the VM or container
+	// +optional
+	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
+	// The subnetName where the Nic belongs to
+	// the subnetName  of the nic. default to subnet where the VM is created from
+	// +optional
+	SubnetName string `json:"subnetName,omitempty" protobuf:"bytes,2,opt,name=subnetName"`
+	// PortId from the IaaS layer for the Nic
+	// the portID with user precreated port ( ENI ).
+	// +optional
+	PortId string `json:"portId,omitempty" protobuf:"bytes,3,opt,name=portId"`
+	// IpAddress is the user specified IP, instead of dynamically allocated one
+	// +optional
+	IpAddress string `json:"ipAddress,omitempty" protobuf:"bytes,4,opt,name=ipAddress"`
+	// any user specified data for the Nic
+	// +optional
+	Tag string `json:"tag,omitempty" protobuf:"bytes,5,opt,name=tag"`
+	// default to false
+	// +optional
+	Ipv6Enabled bool `json:"ipv6Enabled,omitempty" protobuf:"varint,6,opt,name=ipv6Enabled"`
+}
+
+type VmPowerSpec string
+
+// VM power spec represents the desired power state of the VM
+const (
+	VmPowerSpecRunning   VmPowerSpec = "Running"
+	VmPowerSpecPaused    VmPowerSpec = "Paused"
+	VmPowerSpecShutdown  VmPowerSpec = "Shutdown"
+	VmPowerSpecSuspended VmPowerSpec = "Suspended"
+)
+
+// Virtual machine struct defines the information of a VM in the system
+type VirtualMachine struct {
+	// Name of the container specified as a DNS_LABEL.
+	// Each container in a pod must have a unique name (DNS_LABEL).
+	// Cannot be updated.
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// Image name.
+	// More info: https://kubernetes.io/docs/concepts/containers/images
+	// This field is optional to allow higher level config management to default or override
+	// container images in workload controllers like Deployments and StatefulSets.
+	// +optional
+	Image string `json:"image,omitempty" protobuf:"bytes,2,opt,name=image"`
+	// Compute Resources required by this container.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+	// +optional
+	Resources ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,3,opt,name=resources"`
+	// Node compute resources allocated to the container.
+	// +optional
+	ResourcesAllocated ResourceList `json:"resourcesAllocated,omitempty" protobuf:"bytes,15,rep,name=resourcesAllocated,casttype=ResourceList,castkey=ResourceName"`
+	// Resources resize policy for the container.
+	// +optional
+	ResizePolicy []ResizePolicy `json:"resizePolicy,omitempty" protobuf:"bytes,16,rep,name=resizePolicy"`
+	// Pod volumes to mount into the workload's filesystem.
+	// Cannot be updated.
+	// +optional
+	// +patchMergeKey=mountPath
+	// +patchStrategy=merge
+	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty" patchStrategy:"merge" patchMergeKey:"mountPath" protobuf:"bytes,4,rep,name=volumeMounts"`
+	// Image pull policy.
+	// One of Always, Never, IfNotPresent.
+	// Defaults to Always if :latest tag is specified, or IfNotPresent otherwise.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/containers/images#updating-images
+	// +optional
+	ImagePullPolicy PullPolicy `json:"imagePullPolicy,omitempty" protobuf:"bytes,5,opt,name=imagePullPolicy,casttype=PullPolicy"`
+	// either keyPair or the publicKeystring must be provided, used to logon to the VM
+	// +optional
+	KeyPairName string `json:"keyPairName,omitempty" protobuf:"bytes,6,opt,name=keyPairName"`
+	// +optional
+	PublicKey string `json:"publicKey,omitempty" protobuf:"bytes,7,opt,name=publicKey"`
+	// Configuration information or scripts to use upon launch. Must be Base64 encoded. Restricted to 65535 bytes.
+	// +optional
+	UserData []byte `json:"userData,omitempty" protobuf:"bytes,8,opt,name=userData"`
+	// default none, array cert ID that used to verify the image
+	// +optional
+	TrustedImageCertificate []string `json:"trustedImageCertificate,omitempty" protobuf:"bytes,9,opt,name=trustedImageCertificate"`
+	// stop | terminate VM. default to stop
+	// +optional
+	ShutdownBehavior string `json:"shutdownBehavior,omitempty" protobuf:"bytes,10,opt,name=shutdownBehavior"`
+	// if not specified, the first volume in the volume slice will be used
+	// +optional
+	BootVolume string `json:"bootVolume,omitempty" protobuf:"bytes,11,opt,name=bootVolume"`
+	// default running
+	// +optional
+	PowerSpec VmPowerSpec `json:"powerSpec,omitempty" protobuf:"bytes,12,opt,name=powerSpec,casttype=VmPowerSpec"`
+	// volumeDevices is the list of block devices to be used by the container.
+	// This is a beta feature.
+	// +patchMergeKey=devicePath
+	// +patchStrategy=merge
+	// +optional
+	VolumeDevices []VolumeDevice `json:"volumeDevices,omitempty" patchStrategy:"merge" patchMergeKey:"devicePath" protobuf:"bytes,13,rep,name=volumeDevices"`
+	// cloud-init user data script
+	// +optional
+	CloudInitUserDataScript string `json:"cloudInitUserDataScript,omitempty" protobuf:"bytes,14,opt,name=cloudInitUserDataScript"`
+}
+
 // Handler defines a specific action that should be taken
 // TODO: pass structured data to these actions, and document that data here.
 type Handler struct {
@@ -2216,11 +2449,15 @@ type Lifecycle struct {
 	// More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
 	// +optional
 	PostStart *Handler `json:"postStart,omitempty" protobuf:"bytes,1,opt,name=postStart"`
-	// PreStop is called immediately before a container is terminated.
-	// The container is terminated after the handler completes.
-	// The reason for termination is passed to the handler.
-	// Regardless of the outcome of the handler, the container is eventually terminated.
-	// Other management of the container blocks until the hook completes.
+	// PreStop is called immediately before a container is terminated due to an
+	// API request or management event such as liveness probe failure,
+	// preemption, resource contention, etc. The handler is not called if the
+	// container crashes or exits. The reason for termination is passed to the
+	// handler. The Pod's termination grace period countdown begins before the
+	// PreStop hooked is executed. Regardless of the outcome of the handler, the
+	// container will eventually terminate within the Pod's termination grace
+	// period. Other management of the container blocks until the hook completes
+	// or until the termination grace period is reached.
 	// More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
 	// +optional
 	PreStop *Handler `json:"preStop,omitempty" protobuf:"bytes,2,opt,name=preStop"`
@@ -2321,6 +2558,65 @@ type ContainerStatus struct {
 	// Container's ID in the format 'docker://<container_id>'.
 	// +optional
 	ContainerID string `json:"containerID,omitempty" protobuf:"bytes,8,opt,name=containerID"`
+	// Compute resource requests and limits applied to the container.
+	// More info: TODO: Update doc
+	// +optional
+	Resources ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,9,opt,name=resources"`
+}
+
+type VmState string
+
+const (
+	VmActive           VmState = "active"
+	VmPaused           VmState = "paused"
+	VmSuspended        VmState = "suspended"
+	VmStopped          VmState = "stopped"
+	VmRescued          VmState = "rescued"
+	VmResized          VmState = "resized"
+	VmSoftDeleted      VmState = "softdeleted"
+	VmDeleted          VmState = "deleted"
+	VmError            VmState = "error"
+	VmShelved          VmState = "shelved"
+	VmShelvedOffloaded VmState = "shelvedoffloaded"
+)
+
+type VmPowerState string
+
+// VM power state represents the state retrieved from the underlying hypervisor
+const (
+	NoState   VmPowerState = "nostate"
+	Running   VmPowerState = "running"
+	Paused    VmPowerState = "paused"
+	Shutdown  VmPowerState = "shutdown"
+	Crashed   VmPowerState = "crashed"
+	Suspended VmPowerState = "suspended"
+)
+
+// VirtualMachineStatus holds the details of the current status of a given virtual machine instance
+type VirtualMachineStatus struct {
+	// Required
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// +optional
+	VirtualMachineId string `json:"virtualMachineId,omitempty" protobuf:"bytes,2,opt,name=virtualMachineId"`
+	// image
+	// +optional
+	ImageId string `json:"imageId,omitempty" protobuf:"bytes,3,opt,name=imageId"`
+	// +optional
+	Image string `json:"image,omitempty" protobuf:"bytes,4,opt,name=image"`
+	// state of the virtual machine
+	// +optional
+	State VmState `json:"state,omitempty" protobuf:"bytes,5,opt,name=state"`
+	// +optional
+	LastTerminationState VmState `json:"lastTerminationState,omitempty" protobuf:"bytes,6,opt,name=lastTerminationState"`
+	// +optional
+	PowerState VmPowerState `json:"powerState,omitempty" protobuf:"bytes,7,opt,name=powerState"`
+	// +optional
+	Ready bool `json:"ready,omitempty" protobuf:"varint,8,opt,name=ready"`
+	// +optional
+	RestartCount int32 `json:"restartCount,omitempty" protobuf:"varint,9,opt,name=restartCount"`
+	// Compute resource requests and limits applied to the VM
+	// +optional
+	Resources ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,10,opt,name=resources"`
 }
 
 // PodPhase is a label for the condition of a pod at the current time.
@@ -2344,6 +2640,9 @@ const (
 	// PodUnknown means that for some reason the state of the pod could not be obtained, typically due
 	// to an error in communicating with the host of the pod.
 	PodUnknown PodPhase = "Unknown"
+
+	// PodNoSchedule means pod should not be scheduled to any node
+	PodNoSchedule PodPhase = "NoSchedule"
 )
 
 // PodConditionType is a valid value for PodCondition.Type
@@ -2351,18 +2650,24 @@ type PodConditionType string
 
 // These are valid conditions of pod.
 const (
-	// PodScheduled represents status of the scheduling process for this pod.
-	PodScheduled PodConditionType = "PodScheduled"
+	// ContainersReady indicates whether all containers in the pod are ready.
+	ContainersReady PodConditionType = "ContainersReady"
+	// PodInitialized means that all init containers in the pod have started successfully.
+	PodInitialized PodConditionType = "Initialized"
 	// PodReady means the pod is able to service requests and should be added to the
 	// load balancing pools of all matching services.
 	PodReady PodConditionType = "Ready"
-	// PodInitialized means that all init containers in the pod have started successfully.
-	PodInitialized PodConditionType = "Initialized"
+	// PodScheduled represents status of the scheduling process for this pod.
+	PodScheduled PodConditionType = "PodScheduled"
+	// VmReady indicates whether the virtual machine in the pod is ready
+	VmReady PodConditionType = "VirtualMachineReady"
+)
+
+// These are reasons for a pod's transition to a condition.
+const (
 	// PodReasonUnschedulable reason in PodScheduled PodCondition means that the scheduler
 	// can't schedule the pod right now, for example due to insufficient resources in the cluster.
 	PodReasonUnschedulable = "Unschedulable"
-	// ContainersReady indicates whether all containers in the pod are ready.
-	ContainersReady PodConditionType = "ContainersReady"
 )
 
 // PodCondition contains details for the current condition of this pod.
@@ -2741,6 +3046,15 @@ type PodReadinessGate struct {
 
 // PodSpec is a description of a pod.
 type PodSpec struct {
+	// The name of the VPC the VM belongs to
+	// required for VM workload only to keep the container workload unchanged
+	// +optional
+	VPC string `json:"vpc,omitempty" protobuf:"bytes,33,rep,name=vpc"`
+	// List of network interfaces
+	// +optional
+	// +patchMergeKey=name
+	// +patchStrategy=merge,retainKeys
+	Nics []Nic `json:"nics,omitempty" patchStrategy:"merge,retainKeys" patchMergeKey:"name" protobuf:"bytes,34,rep,name=nics"`
 	// List of volumes that can be mounted by containers belonging to the pod.
 	// More info: https://kubernetes.io/docs/concepts/storage/volumes
 	// +optional
@@ -2769,7 +3083,15 @@ type PodSpec struct {
 	// Cannot be updated.
 	// +patchMergeKey=name
 	// +patchStrategy=merge
-	Containers []Container `json:"containers" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,2,rep,name=containers"`
+	// +optional
+	Containers []Container `json:"containers,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,2,rep,name=containers"`
+	// List of virtualMachines belonging to the pod.
+	// Cannot be updated.
+	// +optional
+	VirtualMachine *VirtualMachine `json:"virtualMachine,omitempty" protobuf:"bytes,32,opt,name=virtualMachine"`
+	// Common info for VM or Containers
+	WorkloadInfo []CommonInfo `json:"workloadInfo,omitempty" protobuf:"bytes,35,rep,name=workloadInfo"`
+
 	// Restart policy for all containers within the pod.
 	// One of Always, OnFailure, Never.
 	// Default to Always.
@@ -2903,25 +3225,58 @@ type PodSpec struct {
 	// configuration based on DNSPolicy.
 	// +optional
 	DNSConfig *PodDNSConfig `json:"dnsConfig,omitempty" protobuf:"bytes,26,opt,name=dnsConfig"`
-
 	// If specified, all readiness gates will be evaluated for pod readiness.
 	// A pod is ready when all its containers are ready AND
 	// all conditions specified in the readiness gates have status equal to "True"
-	// More info: https://github.com/kubernetes/community/blob/master/keps/sig-network/0007-pod-ready%2B%2B.md
+	// More info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md
 	// +optional
 	ReadinessGates []PodReadinessGate `json:"readinessGates,omitempty" protobuf:"bytes,28,opt,name=readinessGates"`
 	// RuntimeClassName refers to a RuntimeClass object in the node.k8s.io group, which should be used
 	// to run this pod.  If no RuntimeClass resource matches the named class, the pod will not be run.
 	// If unset or empty, the "legacy" RuntimeClass will be used, which is an implicit class with an
 	// empty definition that uses the default runtime handler.
-	// More info: https://github.com/kubernetes/community/blob/master/keps/sig-node/0014-runtime-class.md
-	// This is an alpha feature and may change in the future.
+	// More info: https://git.k8s.io/enhancements/keps/sig-node/runtime-class.md
+	// This is a beta feature as of Kubernetes v1.14.
 	// +optional
 	RuntimeClassName *string `json:"runtimeClassName,omitempty" protobuf:"bytes,29,opt,name=runtimeClassName"`
 	// EnableServiceLinks indicates whether information about services should be injected into pod's
 	// environment variables, matching the syntax of Docker links.
+	// Optional: Defaults to true.
 	// +optional
 	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty" protobuf:"varint,30,opt,name=enableServiceLinks"`
+	// PreemptionPolicy is the Policy for preempting pods with lower priority.
+	// One of Never, PreemptLowerPriority.
+	// Defaults to PreemptLowerPriority if unset.
+	// This field is alpha-level and is only honored by servers that enable the NonPreemptingPriority feature.
+	// +optional
+	PreemptionPolicy *PreemptionPolicy `json:"preemptionPolicy,omitempty" protobuf:"bytes,31,opt,name=preemptionPolicy"`
+}
+
+func (ps *PodSpec) Workloads() []CommonInfo {
+	if len(ps.WorkloadInfo) == 0 {
+		if ps.VirtualMachine != nil {
+			ps.WorkloadInfo = make([]CommonInfo, 1)
+			ps.WorkloadInfo[0].Name = ps.VirtualMachine.Name
+			ps.WorkloadInfo[0].Image = ps.VirtualMachine.Image
+			ps.WorkloadInfo[0].ImagePullPolicy = ps.VirtualMachine.ImagePullPolicy
+			ps.WorkloadInfo[0].Resources = ps.VirtualMachine.Resources
+			ps.WorkloadInfo[0].ResourcesAllocated = ps.VirtualMachine.ResourcesAllocated
+			ps.WorkloadInfo[0].ResizePolicy = ps.VirtualMachine.ResizePolicy
+			ps.WorkloadInfo[0].VolumeMounts = ps.VirtualMachine.VolumeMounts
+		} else {
+			ps.WorkloadInfo = make([]CommonInfo, len(ps.Containers))
+			for i := range ps.Containers {
+				ps.WorkloadInfo[i].Name = ps.Containers[i].Name
+				ps.WorkloadInfo[i].Image = ps.Containers[i].Image
+				ps.WorkloadInfo[i].ImagePullPolicy = ps.Containers[i].ImagePullPolicy
+				ps.WorkloadInfo[i].Resources = ps.Containers[i].Resources
+				ps.WorkloadInfo[i].ResourcesAllocated = ps.Containers[i].ResourcesAllocated
+				ps.WorkloadInfo[i].ResizePolicy = ps.Containers[i].ResizePolicy
+				ps.WorkloadInfo[i].VolumeMounts = ps.Containers[i].VolumeMounts
+			}
+		}
+	}
+	return ps.WorkloadInfo
 }
 
 const (
@@ -2949,6 +3304,9 @@ type PodSecurityContext struct {
 	// takes precedence for that container.
 	// +optional
 	SELinuxOptions *SELinuxOptions `json:"seLinuxOptions,omitempty" protobuf:"bytes,1,opt,name=seLinuxOptions"`
+	// Windows security options.
+	// +optional
+	WindowsOptions *WindowsSecurityContextOptions `json:"windowsOptions,omitempty" protobuf:"bytes,8,opt,name=windowsOptions"`
 	// The UID to run the entrypoint of the container process.
 	// Defaults to user specified in image metadata if unspecified.
 	// May also be set in SecurityContext.  If set in both SecurityContext and
@@ -3034,6 +3392,33 @@ type PodDNSConfigOption struct {
 	Value *string `json:"value,omitempty" protobuf:"bytes,2,opt,name=value"`
 }
 
+// DeviceState is a label for the device state at the current time.
+type DeviceState string
+
+// These are the valid states of devices.
+const (
+	DeviceUnknown    DeviceState = "Unknown"
+	DeviceInProgress DeviceState = "InProgress"
+	DeviceReady      DeviceState = "Ready"
+	DeviceFailed     DeviceState = "Failed"
+)
+
+// NICStatus contains details for the current status of this nic.
+type NICStatus struct {
+	// Name of nic
+	// +optional
+	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
+	// ID of nic
+	// +optional
+	PortID string `protobuf:"bytes,2,opt,name=portID" json:"portID,omitempty"`
+	// Lifecycle state of nic
+	// +optional
+	State DeviceState `protobuf:"bytes,3,opt,name=state,casttype=DeviceState" json:"state,omitempty"`
+	// Brief CamelCase string explaining why nic is in its current state.
+	// +optional
+	Reason string `protobuf:"bytes,4,opt,name=reason" json:"reason,omitempty"`
+}
+
 // PodStatus represents information about the status of a pod. Status may trail the actual
 // state of a system, especially if the node that hosts the pod cannot contact the control
 // plane.
@@ -3110,6 +3495,13 @@ type PodStatus struct {
 	// More info: https://git.k8s.io/community/contributors/design-proposals/node/resource-qos.md
 	// +optional
 	QOSClass PodQOSClass `json:"qosClass,omitempty" protobuf:"bytes,9,rep,name=qosClass"`
+	// Virtual machine status
+	// currently a pod can only have one virtual machine
+	// +optional
+	VirtualMachineStatus *VirtualMachineStatus `json:"virtualMachineStatus,omitempty" protobuf:"bytes,12,opt,name=virtualMachineStatus"`
+	// NIC status
+	// +optional
+	NICStatuses []NICStatus `json:"nicStatuses,omitempty" protobuf:"bytes,13,opt,name=nicStatuses"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -3402,6 +3794,10 @@ const (
 	// an external name that kubedns or equivalent will return as a CNAME
 	// record, with no exposing or proxying of any pods involved.
 	ServiceTypeExternalName ServiceType = "ExternalName"
+
+	// ServiceTypeExternalNeutronLB means a service will be exposed via an
+	// external Neutron load balancer.
+	ServiceTypeExternalNeutronLB ServiceType = "ExternalNeutronLB"
 )
 
 // Service External Traffic Policy Type string
@@ -3450,6 +3846,9 @@ type ServiceSpec struct {
 	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
 	// +patchMergeKey=port
 	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=port
+	// +listMapKey=protocol
 	Ports []ServicePort `json:"ports,omitempty" patchStrategy:"merge" patchMergeKey:"port" protobuf:"bytes,1,rep,name=ports"`
 
 	// Route service traffic to pods with label keys and values matching this
@@ -3486,7 +3885,7 @@ type ServiceSpec struct {
 	// "LoadBalancer" builds on NodePort and creates an
 	// external load-balancer (if supported in the current cloud) which routes
 	// to the clusterIP.
-	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types
+	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
 	// +optional
 	Type ServiceType `json:"type,omitempty" protobuf:"bytes,4,opt,name=type,casttype=ServiceType"`
 
@@ -3497,6 +3896,11 @@ type ServiceSpec struct {
 	// that are not part of the Kubernetes system.
 	// +optional
 	ExternalIPs []string `json:"externalIPs,omitempty" protobuf:"bytes,5,rep,name=externalIPs"`
+
+	// Only applies to Service Type: NeutronLB
+	// subnetID is external Neutron load balancer vip_subnet_id
+	// +optional
+	SubnetID string `json:"subnetID,omitempty" protobuf:"bytes,16,opt,name=subnetID"`
 
 	// Supports "ClientIP" and "None". Used to maintain session affinity.
 	// Enable client IP based session affinity.
@@ -3747,6 +4151,9 @@ type EndpointSubset struct {
 	// Port numbers available on the related IP addresses.
 	// +optional
 	Ports []EndpointPort `json:"ports,omitempty" protobuf:"bytes,3,rep,name=ports"`
+	// The service group id of the api server cluster
+	// +optional
+	ServiceGroupId string `json:"serviceGroupId,omitempty" protobuf:"bytes,4,opt,name=serviceGroupId"`
 }
 
 // EndpointAddress is a tuple that describes single IP address.
@@ -4097,6 +4504,9 @@ const (
 	NodePIDPressure NodeConditionType = "PIDPressure"
 	// NodeNetworkUnavailable means that network for the node is not correctly configured.
 	NodeNetworkUnavailable NodeConditionType = "NetworkUnavailable"
+	// registered runtime readiness for each workload type
+	NodeContainerRuntimeReady NodeConditionType = "ContainerRuntimeReady"
+	NodeVmRuntimeReady        NodeConditionType = "VmRuntimeReady"
 )
 
 // NodeCondition contains condition information for a node.
@@ -4172,6 +4582,7 @@ type ResourceList map[ResourceName]resource.Quantity
 
 // +genclient
 // +genclient:nonNamespaced
+// +genclient:nonTenanted
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Node is a worker node in Kubernetes.
@@ -4218,6 +4629,104 @@ type FinalizerName string
 const (
 	FinalizerKubernetes FinalizerName = "kubernetes"
 )
+
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:nonTenanted
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// StorageCluster describes the attributes on backend storage
+type StorageCluster struct {
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// A string that specifies the storage object identity
+	StorageClusterId string `json:"storageClusterId" protobuf:"bytes,2,opt,name=storageClusterId"`
+
+	// A string that specifies the backend storage server address
+	ServiceAddress string `json:"serviceAddress" protobuf:"bytes,3,opt,name=serviceAddress"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// StorageClusterList is a list of StorageCluster
+type StorageClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	// Standard list metadata.
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Items is the list of StorageCluster objects in the list.
+	Items []StorageCluster `json:"items" protobuf:"bytes,2,rep,name=items"`
+}
+
+// TenantSpec describes the attributes on a Tenant.
+type TenantSpec struct {
+	// Finalizers is an opaque list of values that must be empty to permanently remove object from storage.
+	// More info: https://kubernetes.io/docs/tasks/administer-cluster/tenants/
+	// +optional
+	Finalizers []FinalizerName `json:"finalizers,omitempty" protobuf:"bytes,1,rep,name=finalizers,casttype=FinalizerName"`
+
+	// StorageClusterId specifies the storage location of objects belong to this tenant
+	StorageClusterId string `json:"storageClusterId" protobuf:"bytes,2,name=storageClusterId"`
+}
+
+// TenantStatus is information about the current status of a Tenant.
+type TenantStatus struct {
+	// Phase is the current lifecycle phase of the tenant.
+	// More info: https://kubernetes.io/docs/tasks/administer-cluster/tenants/
+	// +optional
+	Phase TenantPhase `json:"phase,omitempty" protobuf:"bytes,1,opt,name=phase,casttype=TenantPhase"`
+}
+
+type TenantPhase string
+
+// These are the valid phases of a tenant.
+const (
+	// TenantActive means the tenant is available for use in the system
+	TenantActive TenantPhase = "Active"
+	// TenantTerminating means the tenant is undergoing graceful termination
+	TenantTerminating TenantPhase = "Terminating"
+)
+
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:nonTenanted
+// +genclient:skipVerbs=deleteCollection
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Tenant provides a scope for Names.
+// Use of multiple Tenants is optional.
+type Tenant struct {
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Spec defines the behavior of the Tenant.
+	// +optional
+	Spec TenantSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+
+	// Status describes the current status of a Tenant.
+	// More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
+	// +optional
+	Status TenantStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// TenantList is a list of Tenants.
+type TenantList struct {
+	metav1.TypeMeta `json:",inline"`
+	// Standard list metadata.
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Items is the list of Tenant objects in the list.
+	Items []Tenant `json:"items" protobuf:"bytes,2,rep,name=items"`
+}
 
 // NamespaceSpec describes the attributes on a Namespace.
 type NamespaceSpec struct {
@@ -4298,6 +4807,118 @@ type Binding struct {
 
 	// The target object that you want to bind to the standard object.
 	Target ObjectReference `json:"target" protobuf:"bytes,2,opt,name=target"`
+}
+
+type Operation string
+
+const (
+	RebootOp   Operation = "reboot"
+	SnapshotOp Operation = "snapshot"
+	RestoreOp  Operation = "restore"
+)
+
+type RebootParams struct {
+	DelayInSeconds int32 `json:"delayInSeconds" protobuf:"varint,1,opt,name=delayInSeconds"`
+}
+
+type SnapshotParams struct {
+	// Name of the snapshot
+	SnapshotName string `json:"snapshotName" protobuf:"bytes,1,opt,name=snapshotName"`
+}
+
+type RestoreParams struct {
+	// ID of the snapshot to which the VM has to be restored
+	SnapshotID string `json:"snapshotID" protobuf:"bytes,1,opt,name=snapshotID"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CustomAction object - Specified when invoking action subresource for Pod
+type CustomAction struct {
+	metav1.TypeMeta `json:",inline"`
+	// ObjectMeta describes the object to which this Action applies
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Name of the operation e.g. Reboot, Snapshot, ...
+	Operation string `json:"operation" protobuf:"bytes,2,name=operation"`
+
+	// Action specific parameters
+	RebootParams   RebootParams   `json:"rebootParams,omitempty" protobuf:"bytes,3,opt,name=rebootParams"`
+	SnapshotParams SnapshotParams `json:"snapshotParams,omitempty" protobuf:"bytes,4,opt,name=snapshotParams"`
+	RestoreParams  RestoreParams  `json:"restoreParams,omitempty" protobuf:"bytes,5,opt,name=restoreParams"`
+}
+
+type RebootAction struct {
+	DelayInSeconds int32 `json:"delayInSeconds,omitempty" protobuf:"varint,1,opt,name=delayInSeconds"`
+}
+
+type RebootStatus struct {
+	RebootSuccessful bool `json:"rebootSuccessful,omitempty" protobuf:"varint,1,opt,name=rebootSuccessful"`
+}
+
+type SnapshotAction struct {
+	SnapshotName string `json:"snapshotName,omitempty" protobuf:"bytes,1,opt,name=snapshotName"`
+}
+
+type SnapshotStatus struct {
+	SnapshotID string `json:"snapshotID,omitempty" protobuf:"bytes,1,opt,name=snapshotID"`
+}
+
+type RestoreAction struct {
+	SnapshotID string `json:"snapshotID,omitempty" protobuf:"bytes,1,opt,name=snapshotID"`
+}
+
+type RestoreStatus struct {
+	RestoreSuccessful bool `json:"restoreSuccessful,omitempty" protobuf:"varint,1,opt,name=restoreSuccessful"`
+}
+
+type ActionSpec struct {
+	NodeName       string          `json:"nodeName,omitempty" protobuf:"bytes,1,opt,name=nodeName"`
+	PodName        string          `json:"podName,omitempty" protobuf:"bytes,2,opt,name=podName"`
+	PodID          string          `json:"podID,omitempty" protobuf:"bytes,3,opt,name=podID"`
+	RebootAction   *RebootAction   `json:"rebootAction,omitempty" protobuf:"bytes,4,opt,name=rebootAction"`
+	SnapshotAction *SnapshotAction `json:"snapshotAction,omitempty" protobuf:"bytes,5,opt,name=snapshotAction"`
+	RestoreAction  *RestoreAction  `json:"restoreAction,omitempty" protobuf:"bytes,6,opt,name=restoreAction"`
+}
+
+type ActionStatus struct {
+	Complete       bool            `json:"complete,omitempty" protobuf:"varint,1,opt,name=complete"`
+	Error          string          `json:"error,omitempty" protobuf:"bytes,2,opt,name=error"`
+	PodName        string          `json:"podName,omitempty" protobuf:"bytes,3,opt,name=podName"`
+	PodID          string          `json:"podID,omitempty" protobuf:"bytes,4,opt,name=podID"`
+	RebootStatus   *RebootStatus   `json:"rebootStatus,omitempty" protobuf:"bytes,5,opt,name=rebootStatus"`
+	SnapshotStatus *SnapshotStatus `json:"snapshotStatus,omitempty" protobuf:"bytes,6,opt,name=snapshotStatus"`
+	RestoreStatus  *RestoreStatus  `json:"restoreStatus,omitempty" protobuf:"bytes,7,opt,name=restoreStatus"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+//  Action object - Created and persisted in etcd in response to invocation of pods/action subresource
+type Action struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Spec defines the Action desired by the caller.
+	Spec ActionSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+
+	// Status represents the current information about an Action
+	// +optional
+	Status ActionStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ActionList is a list of events.
+type ActionList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Items is a list of Action objects
+	Items []Action `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
 // Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out.
@@ -4516,6 +5137,9 @@ type ObjectReference struct {
 	// TODO: this design is not final and this field is subject to change in the future.
 	// +optional
 	FieldPath string `json:"fieldPath,omitempty" protobuf:"bytes,7,opt,name=fieldPath"`
+
+	// +optional
+	Tenant string `json:"tenant,omitempty" protobuf:"bytes,8,opt,name=tenant"`
 }
 
 // LocalObjectReference contains enough information to let you locate the
@@ -4647,6 +5271,7 @@ type EventSeries struct {
 	// Time of the last occurrence observed
 	LastObservedTime metav1.MicroTime `json:"lastObservedTime,omitempty" protobuf:"bytes,2,name=lastObservedTime"`
 	// State of this Series: Ongoing or Finished
+	// Deprecated. Planned removal for 1.18
 	State EventSeriesState `json:"state,omitempty" protobuf:"bytes,3,name=state"`
 }
 
@@ -5116,6 +5741,7 @@ type ComponentCondition struct {
 
 // +genclient
 // +genclient:nonNamespaced
+// +genclient:nonTenanted
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ComponentStatus (and ComponentStatusList) holds the cluster validation info.
@@ -5213,6 +5839,9 @@ type SecurityContext struct {
 	// PodSecurityContext, the value specified in SecurityContext takes precedence.
 	// +optional
 	SELinuxOptions *SELinuxOptions `json:"seLinuxOptions,omitempty" protobuf:"bytes,3,opt,name=seLinuxOptions"`
+	// Windows security options.
+	// +optional
+	WindowsOptions *WindowsSecurityContextOptions `json:"windowsOptions,omitempty" protobuf:"bytes,10,opt,name=windowsOptions"`
 	// The UID to run the entrypoint of the container process.
 	// Defaults to user specified in image metadata if unspecified.
 	// May also be set in PodSecurityContext.  If set in both SecurityContext and
@@ -5281,6 +5910,21 @@ type SELinuxOptions struct {
 	// Level is SELinux level label that applies to the container.
 	// +optional
 	Level string `json:"level,omitempty" protobuf:"bytes,4,opt,name=level"`
+}
+
+// WindowsSecurityContextOptions contain Windows-specific options and credentials.
+type WindowsSecurityContextOptions struct {
+	// GMSACredentialSpecName is the name of the GMSA credential spec to use.
+	// This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
+	// +optional
+	GMSACredentialSpecName *string `json:"gmsaCredentialSpecName,omitempty" protobuf:"bytes,1,opt,name=gmsaCredentialSpecName"`
+
+	// GMSACredentialSpec is where the GMSA admission webhook
+	// (https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the
+	// GMSA credential spec named by the GMSACredentialSpecName field.
+	// This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
+	// +optional
+	GMSACredentialSpec *string `json:"gmsaCredentialSpec,omitempty" protobuf:"bytes,2,opt,name=gmsaCredentialSpec"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -5358,3 +6002,79 @@ const (
 	// and data streams for a single forwarded connection
 	PortForwardRequestIDHeader = "requestID"
 )
+
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:nonTenanted
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ControllerInstance contains controller instances with ids and last health check timestamp
+type ControllerInstance struct {
+	metav1.TypeMeta `json:",inline"`
+
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// A string that designate the type of the controller instance
+	ControllerType string `json:"controllerType" protobuf:"bytes,2,opt,name=controllerType"`
+
+	//  An int64 integer that identifies the upperbound of workload instances managed by this controller instance
+	ControllerKey int64 `json:"controllerKey" protobuf:"varint,3,opt,name=controllerKey"`
+
+	// WorkloadNum is int32 that identifies the workload number assigned to the controller instance at last healthcheck
+	// +optional
+	WorkloadNum int32 `json:"workloadNum,omitempty" protobuf:"varint,4,opt,name=workloadNum"`
+
+	// IsLocked is bool that identifies the lock status of the controller instance
+	IsLocked bool `json:"isLocked,omitempty" protobuf:"varint,5,opt,name=isLocked"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ControllerInstanceList is a list of controller instances that have same controller type
+type ControllerInstanceList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// List of controller instance
+	Items []ControllerInstance `json:"items,omitempty" protobuf:"bytes,2,rep,name=items"`
+}
+
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:nonTenanted
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// DataPartitionConfig contains api server data partition configurations. Name in ObjectMeta is used for identitification
+type DataPartitionConfig struct {
+	metav1.TypeMeta `json:",inline"`
+
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Range start is inclusive
+	RangeStart string `json:"rangeStart" protobuf:"bytes,2,opt,name=rangeStart"`
+
+	// Whether this is an open end start
+	IsRangeStartValid bool `json:"isRangeStartValid,omitempty" protobuf:"varint,3,opt,name=isRangeStartValid"`
+
+	// Range end is exclusive
+	RangeEnd string `json:"rangeEnd" protobuf:"bytes,4,opt,name=rangeEnd"`
+
+	// Whether this is an open end end
+	IsRangeEndValid bool `json:"isRangeEndValid,omitempty" protobuf:"varint,5,opt,name=isRangeEndValid"`
+
+	// Which service group is using this data configuration
+	ServiceGroupId string `json:"serviceGroupId" protobuf:"bytes,6,opt,name=serviceGroupId"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// DataPartitionConfigList is a list of data partition configurations that api server data partition use
+type DataPartitionConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// List of data partition configuration
+	Items []DataPartitionConfig `json:"items,omitempty" protobuf:"bytes,2,rep,name=items"`
+}

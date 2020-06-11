@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,6 +56,7 @@ func getEventKey(event *v1.Event) string {
 		event.Source.Component,
 		event.Source.Host,
 		event.InvolvedObject.Kind,
+		event.InvolvedObject.Tenant,
 		event.InvolvedObject.Namespace,
 		event.InvolvedObject.Name,
 		event.InvolvedObject.FieldPath,
@@ -73,6 +75,7 @@ func getSpamKey(event *v1.Event) string {
 		event.Source.Component,
 		event.Source.Host,
 		event.InvolvedObject.Kind,
+		event.InvolvedObject.Tenant,
 		event.InvolvedObject.Namespace,
 		event.InvolvedObject.Name,
 		string(event.InvolvedObject.UID),
@@ -159,6 +162,7 @@ func EventAggregatorByReasonFunc(event *v1.Event) (string, string) {
 		event.Source.Component,
 		event.Source.Host,
 		event.InvolvedObject.Kind,
+		event.InvolvedObject.Tenant,
 		event.InvolvedObject.Namespace,
 		event.InvolvedObject.Name,
 		string(event.InvolvedObject.UID),
@@ -273,6 +277,7 @@ func (e *EventAggregator) EventAggregate(newEvent *v1.Event) (*v1.Event, string)
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%v.%x", newEvent.InvolvedObject.Name, now.UnixNano()),
 			Namespace: newEvent.Namespace,
+			Tenant:    newEvent.Tenant,
 		},
 		Count:          1,
 		FirstTimestamp: now,
@@ -441,6 +446,52 @@ func NewEventCorrelator(clock clock.Clock) *EventCorrelator {
 
 		logger: newEventLogger(cacheSize, clock),
 	}
+}
+
+func NewEventCorrelatorWithOptions(options CorrelatorOptions) *EventCorrelator {
+	optionsWithDefaults := populateDefaults(options)
+	spamFilter := NewEventSourceObjectSpamFilter(optionsWithDefaults.LRUCacheSize,
+		optionsWithDefaults.BurstSize, optionsWithDefaults.QPS, optionsWithDefaults.Clock)
+	return &EventCorrelator{
+		filterFunc: spamFilter.Filter,
+		aggregator: NewEventAggregator(
+			optionsWithDefaults.LRUCacheSize,
+			optionsWithDefaults.KeyFunc,
+			optionsWithDefaults.MessageFunc,
+			optionsWithDefaults.MaxEvents,
+			optionsWithDefaults.MaxIntervalInSeconds,
+			optionsWithDefaults.Clock),
+		logger: newEventLogger(optionsWithDefaults.LRUCacheSize, optionsWithDefaults.Clock),
+	}
+}
+
+// populateDefaults populates the zero value options with defaults
+func populateDefaults(options CorrelatorOptions) CorrelatorOptions {
+	if options.LRUCacheSize == 0 {
+		options.LRUCacheSize = maxLruCacheEntries
+	}
+	if options.BurstSize == 0 {
+		options.BurstSize = defaultSpamBurst
+	}
+	if options.QPS == 0 {
+		options.QPS = defaultSpamQPS
+	}
+	if options.KeyFunc == nil {
+		options.KeyFunc = EventAggregatorByReasonFunc
+	}
+	if options.MessageFunc == nil {
+		options.MessageFunc = EventAggregatorByReasonMessageFunc
+	}
+	if options.MaxEvents == 0 {
+		options.MaxEvents = defaultAggregateMaxEvents
+	}
+	if options.MaxIntervalInSeconds == 0 {
+		options.MaxIntervalInSeconds = defaultAggregateIntervalInSeconds
+	}
+	if options.Clock == nil {
+		options.Clock = clock.RealClock{}
+	}
+	return options
 }
 
 // EventCorrelate filters, aggregates, counts, and de-duplicates all incoming events
