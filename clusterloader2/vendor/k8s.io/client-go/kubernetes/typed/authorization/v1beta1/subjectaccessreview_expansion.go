@@ -1,5 +1,6 @@
 /*
 Copyright 2016 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +29,7 @@ type SubjectAccessReviewExpansion interface {
 func (c *subjectAccessReviews) Create(sar *authorizationapi.SubjectAccessReview) (result *authorizationapi.SubjectAccessReview, err error) {
 	result = &authorizationapi.SubjectAccessReview{}
 	err = c.client.Post().
+		Tenant(c.te).
 		Resource("subjectaccessreviews").
 		Body(sar).
 		Do().

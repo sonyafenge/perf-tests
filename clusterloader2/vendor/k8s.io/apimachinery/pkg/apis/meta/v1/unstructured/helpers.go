@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -275,6 +276,22 @@ func getNestedString(obj map[string]interface{}, fields ...string) string {
 	return val
 }
 
+func getNestedInt64(obj map[string]interface{}, fields ...string) int64 {
+	val, found, err := NestedInt64(obj, fields...)
+	if !found || err != nil {
+		return 0
+	}
+	return val
+}
+
+func getNestedInt64Pointer(obj map[string]interface{}, fields ...string) *int64 {
+	val, found, err := NestedInt64(obj, fields...)
+	if !found || err != nil {
+		return nil
+	}
+	return &val
+}
+
 func jsonPath(fields []string) string {
 	return "." + strings.Join(fields, ".")
 }
@@ -295,6 +312,7 @@ func extractOwnerReference(v map[string]interface{}) metav1.OwnerReference {
 		Name:               getNestedString(v, "name"),
 		APIVersion:         getNestedString(v, "apiVersion"),
 		UID:                types.UID(getNestedString(v, "uid")),
+		HashKey:            getNestedInt64(v, "hashKey"),
 		Controller:         controllerPtr,
 		BlockOwnerDeletion: blockOwnerDeletionPtr,
 	}

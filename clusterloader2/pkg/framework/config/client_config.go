@@ -41,7 +41,7 @@ func PrepareConfig(path string) (*restclient.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = initializeWithDefaults(config); err != nil {
+	if err = initializeWithDefaults(config.GetConfigInPlace(0)); err != nil {
 		return nil, fmt.Errorf("config initialization error: %v", err)
 	}
 	return config, nil
@@ -63,7 +63,7 @@ func loadConfig(path string) (*restclient.Config, error) {
 	return clientcmd.NewDefaultClientConfig(*c, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
 
-func initializeWithDefaults(config *restclient.Config) error {
+func initializeWithDefaults(config *restclient.KubeConfig) error {
 	config.ContentType = contentType
 	config.QPS = qps
 	config.Burst = burst

@@ -1,5 +1,6 @@
 /*
 Copyright 2016 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -90,8 +91,15 @@ func (d *CachedDiscoveryClient) ServerResourcesForGroupVersion(groupVersion stri
 }
 
 // ServerResources returns the supported resources for all groups and versions.
+// Deprecated: use ServerGroupsAndResources instead.
 func (d *CachedDiscoveryClient) ServerResources() ([]*metav1.APIResourceList, error) {
-	return ServerResources(d)
+	_, rs, err := ServerGroupsAndResources(d)
+	return rs, err
+}
+
+// ServerGroupsAndResources returns the supported groups and resources for all groups and versions.
+func (d *CachedDiscoveryClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return ServerGroupsAndResources(d)
 }
 
 // ServerGroups returns the supported groups, with information like supported versions and the
@@ -164,7 +172,7 @@ func (d *CachedDiscoveryClient) getCachedFile(filename string) ([]byte, error) {
 }
 
 func (d *CachedDiscoveryClient) writeCachedFile(filename string, obj runtime.Object) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
 		return err
 	}
 
@@ -183,7 +191,7 @@ func (d *CachedDiscoveryClient) writeCachedFile(filename string, obj runtime.Obj
 		return err
 	}
 
-	err = os.Chmod(f.Name(), 0755)
+	err = os.Chmod(f.Name(), 0660)
 	if err != nil {
 		return err
 	}
@@ -208,6 +216,12 @@ func (d *CachedDiscoveryClient) writeCachedFile(filename string, obj runtime.Obj
 // by this client implementation.
 func (d *CachedDiscoveryClient) RESTClient() restclient.Interface {
 	return d.delegate.RESTClient()
+}
+
+// RESTClients returns all RESTClient that are used to communicate
+// with all API servers by this client implementation.
+func (d *CachedDiscoveryClient) RESTClients() []restclient.Interface {
+	return d.delegate.RESTClients()
 }
 
 // ServerPreferredResources returns the supported resources with the version preferred by the
@@ -262,17 +276,19 @@ func (d *CachedDiscoveryClient) Invalidate() {
 // If discoveryCacheDir is empty, cached server resource data will be looked up in the current directory.
 // TODO(juanvallejo): the value of "--cache-dir" should be honored. Consolidate discoveryCacheDir with httpCacheDir
 // so that server resources and http-cache data are stored in the same location, provided via config flags.
-func NewCachedDiscoveryClientForConfig(config *restclient.Config, discoveryCacheDir, httpCacheDir string, ttl time.Duration) (*CachedDiscoveryClient, error) {
+// TODO - Discovery use one api server for now
+func NewCachedDiscoveryClientForConfig(configs *restclient.Config, discoveryCacheDir, httpCacheDir string, ttl time.Duration) (*CachedDiscoveryClient, error) {
 	if len(httpCacheDir) > 0 {
 		// update the given restconfig with a custom roundtripper that
 		// understands how to handle cache responses.
+		config := configs.GetConfig()
 		config = restclient.CopyConfig(config)
 		config.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 			return newCacheRoundTripper(httpCacheDir, rt)
 		})
 	}
 
-	discoveryClient, err := NewDiscoveryClientForConfig(config)
+	discoveryClient, err := NewDiscoveryClientForConfig(configs)
 	if err != nil {
 		return nil, err
 	}

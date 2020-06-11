@@ -1,5 +1,6 @@
 /*
 Copyright 2014 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -93,6 +94,8 @@ type Request struct {
 	headers    http.Header
 
 	// structural elements of the request that are part of the Kubernetes API conventions
+	tenant       string
+	tenantSet    bool
 	namespace    string
 	namespaceSet bool
 	resource     string
@@ -154,7 +157,7 @@ func (r *Request) Prefix(segments ...string) *Request {
 }
 
 // Suffix appends segments to the end of the path. These items will be placed after the prefix and optional
-// Namespace, Resource, or Name sections.
+// Tenant, Namespace, Resource, or Name sections.
 func (r *Request) Suffix(segments ...string) *Request {
 	if r.err != nil {
 		return r
@@ -258,10 +261,37 @@ func (r *Request) Namespace(namespace string) *Request {
 	return r
 }
 
+// Tenant applies the tenant scope to a request (<resource>/[ns/<tenant>/]<name>)
+func (r *Request) Tenant(tenant string) *Request {
+	if r.err != nil {
+		return r
+	}
+	if r.tenantSet {
+		r.err = fmt.Errorf("tenant already set to %q, cannot change to %q", r.tenant, tenant)
+		return r
+	}
+	if msgs := IsValidPathSegmentName(tenant); len(msgs) != 0 {
+		r.err = fmt.Errorf("invalid tenant %q: %v", tenant, msgs)
+		return r
+	}
+	r.tenantSet = true
+	r.tenant = tenant
+	return r
+}
+
 // NamespaceIfScoped is a convenience function to set a namespace if scoped is true
 func (r *Request) NamespaceIfScoped(namespace string, scoped bool) *Request {
 	if scoped {
 		return r.Namespace(namespace)
+	}
+	return r
+}
+
+// TenantIfScoped is a convenience function to set a tenant if scoped is true
+func (r *Request) TenantIfScoped(tenant string, scoped bool) *Request {
+	if scoped {
+		r = r.Tenant(tenant)
+		return r
 	}
 	return r
 }
@@ -277,6 +307,7 @@ func (r *Request) AbsPath(segments ...string) *Request {
 		// preserve any trailing slashes for legacy behavior
 		r.pathPrefix += "/"
 	}
+
 	return r
 }
 
@@ -421,6 +452,9 @@ func (r *Request) Context(ctx context.Context) *Request {
 // URL returns the current working URL.
 func (r *Request) URL() *url.URL {
 	p := r.pathPrefix
+	if r.tenantSet && len(r.tenant) > 0 && r.tenant != metav1.TenantSystem {
+		p = path.Join(p, "tenants", r.tenant)
+	}
 	if r.namespaceSet && len(r.namespace) > 0 {
 		p = path.Join(p, "namespaces", r.namespace)
 	}
@@ -494,10 +528,11 @@ func (r Request) finalURLTemplate() url.URL {
 		url.RawQuery = ""
 		return *url
 	}
+
 	//switch segLength := len(segments) - index; segLength {
 	switch {
-	// case len(segments) - index == 1:
-	// resource (with no name) do nothing
+	case len(segments)-index == 1:
+		// resource (with no name) do nothing
 	case len(segments)-index == 2:
 		// /$RESOURCE/$NAME: replace $NAME with {name}
 		segments[index+1] = "{name}"
@@ -506,17 +541,51 @@ func (r Request) finalURLTemplate() url.URL {
 			// /$RESOURCE/$NAME/$SUBRESOURCE: replace $NAME with {name}
 			segments[index+1] = "{name}"
 		} else {
-			// /namespace/$NAMESPACE/$RESOURCE: replace $NAMESPACE with {namespace}
-			segments[index+1] = "{namespace}"
+			// /namespaces/$NAMESPACE/$RESOURCE: replace $NAMESPACE with {namespace}
+			// /tenants/$TENANT/$RESOURCE: replace $TENANT with {tenant}
+			if segments[index] == "namespaces" {
+				segments[index+1] = "{namespace}"
+			}
+			if segments[index] == "tenants" {
+				segments[index+1] = "{tenant}"
+
+			}
 		}
 	case len(segments)-index >= 4:
-		segments[index+1] = "{namespace}"
-		// /namespace/$NAMESPACE/$RESOURCE/$NAME: replace $NAMESPACE with {namespace},  $NAME with {name}
+		if segments[index] == "namespaces" {
+			segments[index+1] = "{namespace}"
+		}
+
+		if segments[index] == "tenants" {
+			segments[index+1] = "{tenant}"
+		}
+		// /namespaces/$NAMESPACE/$RESOURCE/$NAME: replace $NAMESPACE with {namespace},  $NAME with {name}
 		if segments[index+3] != "finalize" && segments[index+3] != "status" {
 			// /$RESOURCE/$NAME/$SUBRESOURCE: replace $NAME with {name}
 			segments[index+3] = "{name}"
 		}
+	case len(segments)-index >= 5:
+		// /tenants/$TENANT/namespaces/$NAMESPACE/$RESOURCE: replace $NAMESPACE with {namespace}
+		// replace $TENANT with {tenant}
+
+		if segments[index] == "namespaces" {
+			segments[index+1] = "{namespace}"
+			if segments[index+3] != "finalize" && segments[index+3] != "status" {
+				// /$RESOURCE/$NAME/$SUBRESOURCE: replace $NAME with {name}
+				segments[index+3] = "{name}"
+			}
+		}
+		if segments[index] == "tenants" {
+			segments[index+1] = "{tenant}"
+			if segments[index+2] == "namespaces" {
+				segments[index+3] = "{namespace}"
+			} else if segments[index+3] != "finalize" && segments[index+3] != "status" {
+				// /$RESOURCE/$NAME/$SUBRESOURCE: replace $NAME with {name}
+				segments[index+3] = "{name}"
+			}
+		}
 	}
+
 	url.Path = path.Join(segments...)
 	return *url
 }
@@ -549,6 +618,7 @@ func (r *Request) Watch() (watch.Interface, error) {
 func (r *Request) WatchWithSpecificDecoders(wrapperDecoderFn func(io.ReadCloser) streaming.Decoder, embeddedDecoder runtime.Decoder) (watch.Interface, error) {
 	// We specifically don't want to rate limit watches, so we
 	// don't use r.throttle here.
+
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -571,6 +641,7 @@ func (r *Request) WatchWithSpecificDecoders(wrapperDecoderFn func(io.ReadCloser)
 	}
 	r.backoffMgr.Sleep(r.backoffMgr.CalculateBackoff(r.URL()))
 	resp, err := client.Do(req)
+
 	updateURLMetrics(r, resp, err)
 	if r.baseURL != nil {
 		if err != nil {
@@ -592,10 +663,16 @@ func (r *Request) WatchWithSpecificDecoders(wrapperDecoderFn func(io.ReadCloser)
 		if result := r.transformResponse(resp, req); result.err != nil {
 			return nil, result.err
 		}
-		return nil, fmt.Errorf("for request '%+v', got status: %v", url, resp.StatusCode)
+		return nil, fmt.Errorf("for request %s, got status: %v", url, resp.StatusCode)
 	}
 	wrapperDecoder := wrapperDecoderFn(resp.Body)
-	return watch.NewStreamWatcher(restclientwatch.NewDecoder(wrapperDecoder, embeddedDecoder)), nil
+
+	return watch.NewStreamWatcher(
+		restclientwatch.NewDecoder(wrapperDecoder, embeddedDecoder),
+		// use 500 to indicate that the cause of the error is unknown - other error codes
+		// are more specific to HTTP interactions, and set a reason
+		errors.NewClientErrorReporter(http.StatusInternalServerError, r.verb, "ClientWatchDecoding"),
+	), nil
 }
 
 // updateURLMetrics is a convenience function for pushing metrics.
@@ -688,6 +765,12 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 	}
 
 	// TODO: added to catch programmer errors (invoking operations with an object with an empty namespace)
+	if (r.verb == "GET" || r.verb == "PUT" || r.verb == "DELETE") && r.tenantSet && len(r.resourceName) > 0 && len(r.tenant) == 0 {
+		r = r.Tenant(metav1.TenantSystem)
+	}
+	if (r.verb == "POST") && r.tenantSet && len(r.tenant) == 0 {
+		r = r.Tenant(metav1.TenantSystem)
+	}
 	if (r.verb == "GET" || r.verb == "PUT" || r.verb == "DELETE") && r.namespaceSet && len(r.resourceName) > 0 && len(r.namespace) == 0 {
 		return fmt.Errorf("an empty namespace may not be set when a resource name is provided")
 	}
@@ -845,13 +928,13 @@ func (r *Request) transformResponse(resp *http.Response, req *http.Request) Resu
 			// 3. Apiserver closes connection.
 			// 4. client-go should catch this and return an error.
 			klog.V(2).Infof("Stream error %#v when reading response body, may be caused by closed connection.", err)
-			streamErr := fmt.Errorf("Stream error %#v when reading response body, may be caused by closed connection. Please retry.", err)
+			streamErr := fmt.Errorf("Stream error when reading response body, may be caused by closed connection. Please retry. Original error: %v", err)
 			return Result{
 				err: streamErr,
 			}
 		default:
-			klog.Errorf("Unexpected error when reading response body: %#v", err)
-			unexpectedErr := fmt.Errorf("Unexpected error %#v when reading response body. Please retry.", err)
+			klog.Errorf("Unexpected error when reading response body: %v", err)
+			unexpectedErr := fmt.Errorf("Unexpected error when reading response body. Please retry. Original error: %v", err)
 			return Result{
 				err: unexpectedErr,
 			}

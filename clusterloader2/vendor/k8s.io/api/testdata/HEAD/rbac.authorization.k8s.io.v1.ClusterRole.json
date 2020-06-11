@@ -1,0 +1,83 @@
+{
+  "kind": "ClusterRole",
+  "apiVersion": "rbac.authorization.k8s.io/v1",
+  "metadata": {
+    "name": "2",
+    "generateName": "3",
+    "tenant": "4",
+    "namespace": "5",
+    "selfLink": "6",
+    "uid": "ą飋īqJ枊a8衍`Ĩɘ.蘯6ċV夸e",
+    "hashKey": 2234230302359329354,
+    "resourceVersion": "16964250748386560239",
+    "generation": 5828590068104375683,
+    "creationTimestamp": null,
+    "deletionGracePeriodSeconds": 6797158496028726353,
+    "labels": {
+      "8": "9"
+    },
+    "annotations": {
+      "10": "11"
+    },
+    "ownerReferences": [
+      {
+        "apiVersion": "12",
+        "kind": "13",
+        "name": "14",
+        "uid": "z廔ȇ{sŊƏ",
+        "hashKey": -3769286901598778062,
+        "controller": false,
+        "blockOwnerDeletion": true
+      }
+    ],
+    "finalizers": [
+      "15"
+    ],
+    "clusterName": "16",
+    "managedFields": [
+      {
+        "manager": "17",
+        "operation": "鐊唊飙Ş-U圴÷a/ɔ}摁(湗Ć]",
+        "apiVersion": "18",
+        "fields": {"19":{"20":null}}
+      }
+    ]
+  },
+  "rules": [
+    {
+      "verbs": [
+        "25"
+      ],
+      "apiGroups": [
+        "26"
+      ],
+      "resources": [
+        "27"
+      ],
+      "resourceNames": [
+        "28"
+      ],
+      "nonResourceURLs": [
+        "29"
+      ]
+    }
+  ],
+  "aggregationRule": {
+    "clusterRoleSelectors": [
+      {
+        "matchLabels": {
+          "An---v_-5-_8LXP-o-9..1l-_5---5w9vL_-.M.y._-_R58_HLU..8._Q": "7-dG6c-.6--_x.--0wmZk1_8._3s_-_Bq.m_-q"
+        },
+        "matchExpressions": [
+          {
+            "key": "1d3-7-fP81.-.9Vdx.TB_M-H5",
+            "operator": "NotIn",
+            "values": [
+              "Q42M--n1-p5.3___47._49pIB_o61ISU4--A_.XK_._M9T9sH.Wu5--.H"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

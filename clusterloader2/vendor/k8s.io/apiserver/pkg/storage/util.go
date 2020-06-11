@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,9 +30,9 @@ type SimpleUpdateFunc func(runtime.Object) (runtime.Object, error)
 
 // SimpleUpdateFunc converts SimpleUpdateFunc into UpdateFunc
 func SimpleUpdate(fn SimpleUpdateFunc) UpdateFunc {
-	return func(input runtime.Object, _ ResponseMeta) (runtime.Object, *uint64, error) {
+	return func(input runtime.Object, _ ResponseMeta) (runtime.Object, *uint64, *uint64, error) {
 		out, err := fn(input)
-		return out, nil, err
+		return out, nil, nil, err
 	}
 }
 

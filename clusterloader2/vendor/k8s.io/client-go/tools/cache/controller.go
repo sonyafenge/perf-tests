@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@ limitations under the License.
 package cache
 
 import (
+	"k8s.io/klog"
 	"sync"
 	"time"
 
@@ -81,6 +83,7 @@ type controller struct {
 
 type Controller interface {
 	Run(stopCh <-chan struct{})
+	RunWithReset(stopCh <-chan struct{}, filterBounds []filterBound)
 	HasSynced() bool
 	LastSyncResourceVersion() string
 }
@@ -98,17 +101,38 @@ func New(c *Config) Controller {
 // It's an error to call Run more than once.
 // Run blocks; call via go.
 func (c *controller) Run(stopCh <-chan struct{}) {
+	c.RunWithReset(stopCh, nil)
+}
+
+// RunWithReset begins processing items, and will continue until a value is sent down stopCh.
+// It's an error to call Run more than once.
+// Run blocks; call via go.
+func (c *controller) RunWithReset(stopCh <-chan struct{}, filterBounds []filterBound) {
+	klog.V(4).Infof("start controller run with reset %+v. %v", filterBounds, c.config.ObjectType.GetObjectKind())
+
 	defer utilruntime.HandleCrash()
 	go func() {
 		<-stopCh
 		c.config.Queue.Close()
 	}()
-	r := NewReflector(
-		c.config.ListerWatcher,
-		c.config.ObjectType,
-		c.config.Queue,
-		c.config.FullResyncPeriod,
-	)
+
+	var r *Reflector
+	if len(filterBounds) > 0 {
+		r = NewReflectorWithReset(
+			c.config.ListerWatcher,
+			c.config.ObjectType,
+			c.config.Queue,
+			c.config.FullResyncPeriod,
+			filterBounds,
+		)
+	} else {
+		r = NewReflector(
+			c.config.ListerWatcher,
+			c.config.ObjectType,
+			c.config.Queue,
+			c.config.FullResyncPeriod,
+		)
+	}
 	r.ShouldResync = c.config.ShouldResync
 	r.clock = c.clock
 
@@ -285,45 +309,7 @@ func NewInformer(
 	// This will hold the client state, as we know it.
 	clientState := NewStore(DeletionHandlingMetaNamespaceKeyFunc)
 
-	// This will hold incoming changes. Note how we pass clientState in as a
-	// KeyLister, that way resync operations will result in the correct set
-	// of update/delete deltas.
-	fifo := NewDeltaFIFO(MetaNamespaceKeyFunc, clientState)
-
-	cfg := &Config{
-		Queue:            fifo,
-		ListerWatcher:    lw,
-		ObjectType:       objType,
-		FullResyncPeriod: resyncPeriod,
-		RetryOnError:     false,
-
-		Process: func(obj interface{}) error {
-			// from oldest to newest
-			for _, d := range obj.(Deltas) {
-				switch d.Type {
-				case Sync, Added, Updated:
-					if old, exists, err := clientState.Get(d.Object); err == nil && exists {
-						if err := clientState.Update(d.Object); err != nil {
-							return err
-						}
-						h.OnUpdate(old, d.Object)
-					} else {
-						if err := clientState.Add(d.Object); err != nil {
-							return err
-						}
-						h.OnAdd(d.Object)
-					}
-				case Deleted:
-					if err := clientState.Delete(d.Object); err != nil {
-						return err
-					}
-					h.OnDelete(d.Object)
-				}
-			}
-			return nil
-		},
-	}
-	return clientState, New(cfg)
+	return clientState, newInformer(lw, objType, resyncPeriod, h, clientState)
 }
 
 // NewIndexerInformer returns a Indexer and a controller for populating the index
@@ -352,6 +338,30 @@ func NewIndexerInformer(
 	// This will hold the client state, as we know it.
 	clientState := NewIndexer(DeletionHandlingMetaNamespaceKeyFunc, indexers)
 
+	return clientState, newInformer(lw, objType, resyncPeriod, h, clientState)
+}
+
+// newInformer returns a controller for populating the store while also
+// providing event notifications.
+//
+// Parameters
+//  * lw is list and watch functions for the source of the resource you want to
+//    be informed of.
+//  * objType is an object of the type that you expect to receive.
+//  * resyncPeriod: if non-zero, will re-list this often (you will get OnUpdate
+//    calls, even if nothing changed). Otherwise, re-list will be delayed as
+//    long as possible (until the upstream source closes the watch or times out,
+//    or you stop the controller).
+//  * h is the object you want notifications sent to.
+//  * clientState is the store you want to populate
+//
+func newInformer(
+	lw ListerWatcher,
+	objType runtime.Object,
+	resyncPeriod time.Duration,
+	h ResourceEventHandler,
+	clientState Store,
+) Controller {
 	// This will hold incoming changes. Note how we pass clientState in as a
 	// KeyLister, that way resync operations will result in the correct set
 	// of update/delete deltas.
@@ -390,5 +400,5 @@ func NewIndexerInformer(
 			return nil
 		},
 	}
-	return clientState, New(cfg)
+	return New(cfg)
 }

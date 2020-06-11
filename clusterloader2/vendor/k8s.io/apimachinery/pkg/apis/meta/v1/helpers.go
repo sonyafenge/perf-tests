@@ -1,5 +1,6 @@
 /*
 Copyright 2016 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/fields"
@@ -227,10 +229,16 @@ func NewUIDPreconditions(uid string) *Preconditions {
 	return &Preconditions{UID: &u}
 }
 
+// NewRVDeletionPrecondition returns a DeleteOptions with a ResourceVersion precondition set.
+func NewRVDeletionPrecondition(rv string) *DeleteOptions {
+	p := Preconditions{ResourceVersion: &rv}
+	return &DeleteOptions{Preconditions: &p}
+}
+
 // HasObjectMetaSystemFieldValues returns true if fields that are managed by the system on ObjectMeta have values.
 func HasObjectMetaSystemFieldValues(meta Object) bool {
 	return !meta.GetCreationTimestamp().Time.IsZero() ||
-		len(meta.GetUID()) != 0
+		(len(meta.GetUID()) != 0 && meta.GetHashKey() != 0)
 }
 
 // ResetObjectMetaForStatus forces the meta fields for a status update to match the meta fields
@@ -240,7 +248,22 @@ func ResetObjectMetaForStatus(meta, existingMeta Object) {
 	meta.SetGeneration(existingMeta.GetGeneration())
 	meta.SetSelfLink(existingMeta.GetSelfLink())
 	meta.SetLabels(existingMeta.GetLabels())
+	meta.SetHashKey(existingMeta.GetHashKey())
 	meta.SetAnnotations(existingMeta.GetAnnotations())
 	meta.SetFinalizers(existingMeta.GetFinalizers())
 	meta.SetOwnerReferences(existingMeta.GetOwnerReferences())
+	meta.SetManagedFields(existingMeta.GetManagedFields())
 }
+
+// MarshalJSON implements json.Marshaler
+func (f Fields) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&f.Map)
+}
+
+// UnmarshalJSON implements json.Unmarshaler
+func (f *Fields) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &f.Map)
+}
+
+var _ json.Marshaler = Fields{}
+var _ json.Unmarshaler = &Fields{}

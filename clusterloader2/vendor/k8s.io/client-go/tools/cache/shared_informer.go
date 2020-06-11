@@ -1,5 +1,6 @@
 /*
 Copyright 2015 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafov/bcast"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -31,31 +33,84 @@ import (
 	"k8s.io/klog"
 )
 
-// SharedInformer has a shared data cache and is capable of distributing notifications for changes
-// to the cache to multiple listeners who registered via AddEventHandler. If you use this, there is
-// one behavior change compared to a standard Informer.  When you receive a notification, the cache
-// will be AT LEAST as fresh as the notification, but it MAY be more fresh.  You should NOT depend
-// on the contents of the cache exactly matching the notification you've received in handler
-// functions.  If there was a create, followed by a delete, the cache may NOT have your item.  This
-// has advantages over the broadcaster since it allows us to share a common cache across many
-// controllers. Extending the broadcaster would have required us keep duplicate caches for each
-// watch.
+// SharedInformer provides eventually consistent linkage of its
+// clients to the authoritative state of a given collection of
+// objects.  An object is identified by its API group, kind/resource,
+// namespace, and name.  One SharedInfomer provides linkage to objects
+// of a particular API group and kind/resource.  The linked object
+// collection of a SharedInformer may be further restricted to one
+// namespace and/or by label selector and/or field selector.
+//
+// The authoritative state of an object is what apiservers provide
+// access to, and an object goes through a strict sequence of states.
+// A state is either "absent" or present with a ResourceVersion and
+// other appropriate content.
+//
+// A SharedInformer maintains a local cache, exposed by Store(), of
+// the state of each relevant object.  This cache is eventually
+// consistent with the authoritative state.  This means that, unless
+// prevented by persistent communication problems, if ever a
+// particular object ID X is authoritatively associated with a state S
+// then for every SharedInformer I whose collection includes (X, S)
+// eventually either (1) I's cache associates X with S or a later
+// state of X, (2) I is stopped, or (3) the authoritative state
+// service for X terminates.  To be formally complete, we say that the
+// absent state meets any restriction by label selector or field
+// selector.
+//
+// As a simple example, if a collection of objects is henceforeth
+// unchanging and a SharedInformer is created that links to that
+// collection then that SharedInformer's cache eventually holds an
+// exact copy of that collection (unless it is stopped too soon, the
+// authoritative state service ends, or communication problems between
+// the two persistently thwart achievement).
+//
+// As another simple example, if the local cache ever holds a
+// non-absent state for some object ID and the object is eventually
+// removed from the authoritative state then eventually the object is
+// removed from the local cache (unless the SharedInformer is stopped
+// too soon, the authoritative state service emnds, or communication
+// problems persistently thwart the desired result).
+//
+// The keys in Store() are of the form namespace/name for namespaced
+// objects, and are simply the name for non-namespaced objects.
+//
+// A client is identified here by a ResourceEventHandler.  For every
+// update to the SharedInformer's local cache and for every client,
+// eventually either the SharedInformer is stopped or the client is
+// notified of the update.  These notifications happen after the
+// corresponding cache update and, in the case of a
+// SharedIndexInformer, after the corresponding index updates.  It is
+// possible that additional cache and index updates happen before such
+// a prescribed notification.  For a given SharedInformer and client,
+// all notifications are delivered sequentially.  For a given
+// SharedInformer, client, and object ID, the notifications are
+// delivered in order.
+//
+// A delete notification exposes the last locally known non-absent
+// state, except that its ResourceVersion is replaced with a
+// ResourceVersion in which the object is actually absent.
 type SharedInformer interface {
 	// AddEventHandler adds an event handler to the shared informer using the shared informer's resync
 	// period.  Events to a single handler are delivered sequentially, but there is no coordination
 	// between different handlers.
 	AddEventHandler(handler ResourceEventHandler)
-	// AddEventHandlerWithResyncPeriod adds an event handler to the shared informer using the
-	// specified resync period.  Events to a single handler are delivered sequentially, but there is
-	// no coordination between different handlers.
+	// AddEventHandlerWithResyncPeriod adds an event handler to the
+	// shared informer using the specified resync period.  The resync
+	// operation consists of delivering to the handler a create
+	// notification for every object in the informer's local cache; it
+	// does not add any interactions with the authoritative storage.
 	AddEventHandlerWithResyncPeriod(handler ResourceEventHandler, resyncPeriod time.Duration)
-	// GetStore returns the Store.
+	// GetStore returns the informer's local cache as a Store.
 	GetStore() Store
 	// GetController gives back a synthetic interface that "votes" to start the informer
 	GetController() Controller
-	// Run starts the shared informer, which will be stopped when stopCh is closed.
+	// Run starts and runs the shared informer, returning after it stops.
+	// The informer will be stopped when stopCh is closed.
 	Run(stopCh <-chan struct{})
-	// HasSynced returns true if the shared informer's store has synced.
+	// HasSynced returns true if the shared informer's store has been
+	// informed by at least one full LIST of the authoritative state
+	// of the informer's object collection.  This is unrelated to "resync".
 	HasSynced() bool
 	// LastSyncResourceVersion is the resource version observed when last synced with the underlying
 	// store. The value returned is not synchronized with access to the underlying store and is not
@@ -68,6 +123,7 @@ type SharedIndexInformer interface {
 	// AddIndexers add indexers to the informer before it starts.
 	AddIndexers(indexers Indexers) error
 	GetIndexer() Indexer
+	AddResetCh(member *bcast.Member, sourceName string, ownerKind string)
 }
 
 // NewSharedInformer creates a new instance for the listwatcher.
@@ -78,6 +134,7 @@ func NewSharedInformer(lw ListerWatcher, objType runtime.Object, resyncPeriod ti
 // NewSharedIndexInformer creates a new instance for the listwatcher.
 func NewSharedIndexInformer(lw ListerWatcher, objType runtime.Object, defaultEventHandlerResyncPeriod time.Duration, indexers Indexers) SharedIndexInformer {
 	realClock := &clock.RealClock{}
+
 	sharedIndexInformer := &sharedIndexInformer{
 		processor:                       &sharedProcessor{clock: realClock},
 		indexer:                         NewIndexer(DeletionHandlingMetaNamespaceKeyFunc, indexers),
@@ -87,6 +144,7 @@ func NewSharedIndexInformer(lw ListerWatcher, objType runtime.Object, defaultEve
 		defaultEventHandlerResyncPeriod: defaultEventHandlerResyncPeriod,
 		cacheMutationDetector:           NewCacheMutationDetector(fmt.Sprintf("%T", objType)),
 		clock:                           realClock,
+		filterBounds:                    make([]filterBound, 0),
 	}
 	return sharedIndexInformer
 }
@@ -101,6 +159,12 @@ const (
 	// initialBufferSize is the initial number of event notifications that can be buffered.
 	initialBufferSize = 1024
 )
+
+type FilterBound struct {
+	OwnerName  string
+	LowerBound int64
+	UpperBound int64
+}
 
 // WaitForCacheSync waits for caches to populate.  It returns true if it was successful, false
 // if the controller should shutdown
@@ -151,6 +215,9 @@ type sharedIndexInformer struct {
 	// blockDeltas gives a way to stop all event distribution so that a late event handler
 	// can safely join the shared informer.
 	blockDeltas sync.Mutex
+
+	// filterBounds are a list of list/watch filtering bounds
+	filterBounds []filterBound
 }
 
 // dummyController hides the fact that a SharedInformer is different from a dedicated one
@@ -165,12 +232,19 @@ type dummyController struct {
 func (v *dummyController) Run(stopCh <-chan struct{}) {
 }
 
+func (v *dummyController) RunWithReset(stopCh <-chan struct{}, filterBounds []filterBound) {
+}
+
 func (v *dummyController) HasSynced() bool {
 	return v.informer.HasSynced()
 }
 
 func (c *dummyController) LastSyncResourceVersion() string {
 	return ""
+}
+
+func (c *dummyController) Config() Config {
+	return Config{}
 }
 
 type updateNotification struct {
@@ -201,7 +275,6 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 
 		Process: s.HandleDeltas,
 	}
-
 	func() {
 		s.startedLock.Lock()
 		defer s.startedLock.Unlock()
@@ -224,7 +297,13 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 		defer s.startedLock.Unlock()
 		s.stopped = true // Don't want any new listeners
 	}()
-	s.controller.Run(stopCh)
+	if len(s.filterBounds) > 0 {
+		klog.V(4).Infof("start informer with reset channel. %v", s.objectType)
+		s.controller.RunWithReset(stopCh, s.filterBounds)
+	} else {
+		klog.V(4).Infof("start informer without reset channel. %v", s.objectType)
+		s.controller.Run(stopCh)
+	}
 }
 
 func (s *sharedIndexInformer) HasSynced() bool {
@@ -264,6 +343,18 @@ func (s *sharedIndexInformer) AddIndexers(indexers Indexers) error {
 	}
 
 	return s.indexer.AddIndexers(indexers)
+}
+
+func (s *sharedIndexInformer) AddResetCh(resetCh *bcast.Member, sourceName string, ownerKind string) {
+	s.startedLock.Lock()
+	defer s.startedLock.Unlock()
+
+	filterBound := filterBound{
+		resetCh:    resetCh,
+		sourceName: sourceName,
+		ownerKind:  ownerKind,
+	}
+	s.filterBounds = append(s.filterBounds, filterBound)
 }
 
 func (s *sharedIndexInformer) GetController() Controller {
@@ -555,7 +646,7 @@ func (p *processorListener) run() {
 				case deleteNotification:
 					p.handler.OnDelete(notification.oldObj)
 				default:
-					utilruntime.HandleError(fmt.Errorf("unrecognized notification: %#v", next))
+					utilruntime.HandleError(fmt.Errorf("unrecognized notification: %T", next))
 				}
 			}
 			// the only way to get here is if the p.nextCh is empty and closed

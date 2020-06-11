@@ -1,5 +1,6 @@
 /*
 Copyright 2017 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +23,6 @@ import (
 )
 
 func (c *FakeLocalSubjectAccessReviews) Create(sar *authorizationapi.LocalSubjectAccessReview) (result *authorizationapi.LocalSubjectAccessReview, err error) {
-	obj, err := c.Fake.Invokes(core.NewCreateAction(authorizationapi.SchemeGroupVersion.WithResource("localsubjectaccessreviews"), c.ns, sar), &authorizationapi.SubjectAccessReview{})
+	obj, err := c.Fake.Invokes(core.NewCreateActionWithMultiTenancy(authorizationapi.SchemeGroupVersion.WithResource("localsubjectaccessreviews"), c.ns, sar, c.te), &authorizationapi.SubjectAccessReview{})
 	return obj.(*authorizationapi.LocalSubjectAccessReview), err
 }

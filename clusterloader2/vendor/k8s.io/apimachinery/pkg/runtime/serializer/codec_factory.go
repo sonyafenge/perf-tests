@@ -148,6 +148,12 @@ func newCodecFactory(scheme *runtime.Scheme, serializers []serializerType) Codec
 	}
 }
 
+// WithoutConversion returns a NegotiatedSerializer that performs no conversion, even if the
+// caller requests it.
+func (f CodecFactory) WithoutConversion() runtime.NegotiatedSerializer {
+	return WithoutConversionCodecFactory{f}
+}
+
 // SupportedMediaTypes returns the RFC2046 media types that this factory has serializers for.
 func (f CodecFactory) SupportedMediaTypes() []runtime.SerializerInfo {
 	return f.accepts
@@ -217,6 +223,13 @@ func (f CodecFactory) EncoderForVersion(encoder runtime.Encoder, gv runtime.Grou
 
 // DirectCodecFactory provides methods for retrieving "DirectCodec"s, which do not do conversion.
 type DirectCodecFactory struct {
+	CodecFactory
+}
+
+// WithoutConversionCodecFactory is a CodecFactory that will explicitly ignore requests to perform conversion.
+// This wrapper is used while code migrates away from using conversion (such as external clients) and in the future
+// will be unnecessary when we change the signature of NegotiatedSerializer.
+type WithoutConversionCodecFactory struct {
 	CodecFactory
 }
 

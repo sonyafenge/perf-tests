@@ -1,5 +1,6 @@
 /*
 Copyright 2017 The Kubernetes Authors.
+Copyright 2020 Authors of Arktos - file modified.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,6 +28,7 @@ type SelfSubjectRulesReviewExpansion interface {
 func (c *selfSubjectRulesReviews) Create(srr *authorizationapi.SelfSubjectRulesReview) (result *authorizationapi.SelfSubjectRulesReview, err error) {
 	result = &authorizationapi.SelfSubjectRulesReview{}
 	err = c.client.Post().
+		Tenant(c.te).
 		Resource("selfsubjectrulesreviews").
 		Body(srr).
 		Do().
