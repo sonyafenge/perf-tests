@@ -59,7 +59,7 @@ type ClientConfig interface {
 	// RawConfig returns the merged result of all overrides
 	RawConfig() ([]clientcmdapi.Config, error)
 	// ClientConfig returns a complete client config
-	ClientConfig() (*restclient.KubeConfig, error)
+	ClientConfig() (*restclient.Config, error)
 	// Namespace returns the namespace resulting from the merged
 	// result of all overrides and a boolean indicating if it was
 	// overridden
@@ -117,7 +117,7 @@ func NewClientConfigFromBytes(configBytes []byte) (ClientConfig, error) {
 
 // RESTConfigFromKubeConfig is a convenience method to give back a restconfig from your kubeconfig bytes.
 // For programmatic access, this is what you want 80% of the time
-func RESTConfigFromKubeConfig(configBytes []byte) (*restclient.KubeConfig, error) {
+func RESTConfigFromKubeConfig(configBytes []byte) (*restclient.Config, error) {
 	clientConfig, err := NewClientConfigFromBytes(configBytes)
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func (config *DirectClientConfig) RawConfig() ([]clientcmdapi.Config, error) {
 }
 
 // ClientConfig implements ClientConfig
-func (config *DirectClientConfig) ClientConfig() (*restclient.KubeConfig, error) {
+func (config *DirectClientConfig) ClientConfig() (*restclient.Config, error) {
 	// check that getAuthInfo, getContext, and getCluster do not return an error.
 	// Do this before checking if the current config is usable in the event that an
 	// AuthInfo, Context, or Cluster config with user-defined names are not found.
@@ -500,7 +500,7 @@ func (config *DirectClientConfig) getCluster() (clientcmdapi.Cluster, error) {
 // Can take options overrides for flags explicitly provided to the command inside the cluster container.
 type inClusterClientConfig struct {
 	overrides               *ConfigOverrides
-	inClusterConfigProvider func() (*restclient.KubeConfig, error)
+	inClusterConfigProvider func() (*restclient.Config, error)
 }
 
 var _ ClientConfig = &inClusterClientConfig{}
@@ -509,7 +509,7 @@ func (config *inClusterClientConfig) RawConfig() ([]clientcmdapi.Config, error) 
 	return []clientcmdapi.Config{}, fmt.Errorf("inCluster environment config doesn't support multiple clusters")
 }
 
-func (config *inClusterClientConfig) ClientConfig() (*restclient.KubeConfig, error) {
+func (config *inClusterClientConfig) ClientConfig() (*restclient.Config, error) {
 	if config.inClusterConfigProvider == nil {
 		config.inClusterConfigProvider = restclient.InClusterConfig
 	}
@@ -590,7 +590,7 @@ func (config *inClusterClientConfig) Possible() bool {
 // components. Warnings should reflect this usage. If neither masterUrl or kubeconfigPath
 // are passed in we fallback to inClusterConfig. If inClusterConfig fails, we fallback
 // to the default config.
-func BuildConfigFromFlags(masterUrl, kubeconfigPath string) (*restclient.KubeConfig, error) {
+func BuildConfigFromFlags(masterUrl, kubeconfigPath string) (*restclient.Config, error) {
 	if kubeconfigPath == "" && masterUrl == "" {
 		klog.Warningf("Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.")
 		kubeconfig, err := restclient.InClusterConfig()
@@ -607,7 +607,7 @@ func BuildConfigFromFlags(masterUrl, kubeconfigPath string) (*restclient.KubeCon
 
 // BuildConfigFromKubeconfigGetter is a helper function that builds configs from a master
 // url and a kubeconfigGetter.
-func BuildConfigFromKubeconfigGetter(masterUrl string, kubeconfigGetter KubeconfigGetter) (*restclient.KubeConfig, error) {
+func BuildConfigFromKubeconfigGetter(masterUrl string, kubeconfigGetter KubeconfigGetter) (*restclient.Config, error) {
 	// TODO: We do not need a DeferredLoader here. Refactor code and see if we can use DirectClientConfig here.
 	cc := NewNonInteractiveDeferredLoadingClientConfig(
 		&ClientConfigGetter{kubeconfigGetter: kubeconfigGetter},
