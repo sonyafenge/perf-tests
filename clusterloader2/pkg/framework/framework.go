@@ -29,6 +29,7 @@ import (
 	"k8s.io/perf-tests/clusterloader2/pkg/config"
 	"k8s.io/perf-tests/clusterloader2/pkg/errors"
 	"k8s.io/perf-tests/clusterloader2/pkg/framework/client"
+	"k8s.io/perf-tests/clusterloader2/pkg/util"
 
 	// ensure auth plugins are loaded
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -107,7 +108,7 @@ func (f *Framework) CreateAutomanagedNamespaces(namespaceCount int) error {
 		return fmt.Errorf("automanaged namespaces already created")
 	}
 	for i := 1; i <= namespaceCount; i++ {
-		name := fmt.Sprintf("%v-%d", f.automanagedNamespacePrefix, i)
+		name := fmt.Sprintf("%s-%v", util.RandomDNS1123String(6), f.automanagedNamespacePrefix)
 		if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
 			return err
 		}
@@ -158,7 +159,37 @@ func (f *Framework) deleteNamespace(namespace string) error {
 func (f *Framework) DeleteAutomanagedNamespaces() *errors.ErrorList {
 	var wg wait.Group
 	errList := errors.NewErrorList()
-	for i := 1; i <= f.automanagedNamespaceCount; i++ {
+	automanagedNamespacesList, staleNamespaces, err := f.ListAutomanagedNamespaces()
+	if err != nil {
+		errList.Append(err)
+		return errList
+	}
+	if len(automanagedNamespacesList) > 0 {
+		for namespaceIndex := range automanagedNamespacesList {
+			nsName := automanagedNamespacesList[namespaceIndex]
+			wg.Start(func() {
+				if err := f.deleteNamespace(nsName); err != nil {
+					errList.Append(err)
+					return
+				}
+			})
+		}
+
+	}
+
+	if len(staleNamespaces) > 0 {
+		for namespaceIndex := range staleNamespaces {
+			nsName := staleNamespaces[namespaceIndex]
+			wg.Start(func() {
+				if err := f.deleteNamespace(nsName); err != nil {
+					errList.Append(err)
+					return
+				}
+			})
+		}
+
+	}
+	/*for i := 1; i <= automanagedNamespacesList; i++ {
 		name := fmt.Sprintf("%v-%d", f.automanagedNamespacePrefix, i)
 		wg.Start(func() {
 			if err := f.deleteNamespace(name); err != nil {
@@ -167,6 +198,7 @@ func (f *Framework) DeleteAutomanagedNamespaces() *errors.ErrorList {
 			}
 		})
 	}
+	*/
 	wg.Wait()
 	f.automanagedNamespaceCount = 0
 	return errList
@@ -248,7 +280,8 @@ func (f *Framework) ApplyTemplatedManifests(manifestGlob string, templateMapping
 }
 
 func (f *Framework) isAutomanagedNamespace(name string) (bool, error) {
-	return regexp.MatchString(f.automanagedNamespacePrefix+"-[1-9][0-9]*", name)
+	//return regexp.MatchString(f.automanagedNamespacePrefix+"-[1-9][0-9]*", name)
+	return regexp.MatchString("[a-zA-Z0-9]{6,}-"+f.automanagedNamespacePrefix, name)
 }
 
 func (f *Framework) isStaleAutomanagedNamespace(name string) bool {
