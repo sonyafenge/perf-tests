@@ -107,13 +107,43 @@ func (f *Framework) CreateAutomanagedNamespaces(namespaceCount int) error {
 	if f.automanagedNamespaceCount != 0 {
 		return fmt.Errorf("automanaged namespaces already created")
 	}
-	for i := 1; i <= namespaceCount; i++ {
-		name := fmt.Sprintf("%s-%v", util.RandomDNS1123String(6), f.automanagedNamespacePrefix)
-		if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
-			return err
+
+	startpos := 0
+	endpos := 0
+
+	if f.clusterConfig.Apiserverextranum == 0 {
+		for i := 1; i <= namespaceCount; i++ {
+			name := fmt.Sprintf("%s-%v", util.RandomDNS1123String(6, startpos, endpos), f.automanagedNamespacePrefix)
+			if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
+				return err
+			}
+			f.automanagedNamespaceCount++
 		}
-		f.automanagedNamespaceCount++
+	} else {
+		namespaceinterval := 0
+		apiservernum := f.clusterConfig.Apiserverextranum + 1
+		if namespaceCount%apiservernum > 0 {
+			namespaceinterval = namespaceCount/apiservernum + 1
+		} else {
+			namespaceinterval = namespaceCount / apiservernum
+		}
+		for server := 1; server <= apiservernum; server++ {
+			endpos = startpos + (26 / apiservernum)
+			for i := 1; i <= namespaceinterval; i++ {
+				name := fmt.Sprintf("%s-%v", util.RandomDNS1123String(6, startpos, endpos), f.automanagedNamespacePrefix)
+				if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
+					return err
+				}
+				f.automanagedNamespaceCount++
+			}
+			if namespaceCount-f.automanagedNamespaceCount < namespaceinterval {
+				namespaceinterval = namespaceCount - f.automanagedNamespaceCount
+			}
+			startpos = endpos
+
+		}
 	}
+
 	return nil
 }
 

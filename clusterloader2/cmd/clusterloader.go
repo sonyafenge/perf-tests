@@ -18,10 +18,11 @@ package main
 
 import (
 	"fmt"
-	"k8s.io/kubernetes/pkg/master/ports"
 	"os"
 	"path"
 	"time"
+
+	"k8s.io/kubernetes/pkg/master/ports"
 
 	ginkgoconfig "github.com/onsi/ginkgo/config"
 	ginkgoreporters "github.com/onsi/ginkgo/reporters"
@@ -61,6 +62,7 @@ var (
 func initClusterFlags() {
 	flags.StringEnvVar(&clusterLoaderConfig.ClusterConfig.KubeConfigPath, "kubeconfig", "KUBECONFIG", "", "Path to the kubeconfig file")
 	flags.IntEnvVar(&clusterLoaderConfig.ClusterConfig.Nodes, "nodes", "NUM_NODES", 0, "number of nodes")
+	flags.IntEnvVar(&clusterLoaderConfig.ClusterConfig.Apiserverextranum, "apiserver-extra-num", "APISERVERS_EXTRA_NUM", 0, "number of extra apiservers")
 	flags.IntEnvVar(&clusterLoaderConfig.ClusterConfig.KubeletPort, "kubelet-port", "KUBELET_PORT", ports.KubeletPort, "Port of the kubelet to use")
 	flags.StringEnvVar(&clusterLoaderConfig.ClusterConfig.Provider, "provider", "PROVIDER", "", "Cluster provider")
 	flags.StringEnvVar(&clusterLoaderConfig.ClusterConfig.EtcdCertificatePath, "etcd-certificate", "ETCD_CERTIFICATE", "/etc/srv/kubernetes/pki/etcd-apiserver-server.crt", "Path to the etcd certificate on the master machine")

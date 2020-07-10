@@ -247,9 +247,37 @@ func CloneMap(src map[string]interface{}) map[string]interface{} {
 // RandomDNS1123String generates random string of a given length.
 func RandomDNS1123String(length int) string {
 	characters := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	characters_l := []rune("abcdefghijklmnopqrstuvwxyz")
+	s := make([]rune, length)
+
+	var i int
+	for i = range s {
+		if i == 0 {
+			s[i] = characters_l[rand.Intn(len(characters_l))]
+		} else {
+			s[i] = characters[rand.Intn(len(characters))]
+		}
+	}
+	return string(s)
+}
+
+// RandomDNS1123String generates random string of a given length.
+func RandomDNS1123String(length int, startpos int, endpos int) string {
+	characters := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	var characters_pos []rune
+	if startpos < endpos {
+		characters_pos = []rune(string(characters[startpos:endpos]))
+	} else {
+		characters_pos = characters
+	}
+
 	s := make([]rune, length)
 	for i := range s {
-		s[i] = characters[rand.Intn(len(characters))]
+		if i == 0 {
+			s[i] = characters_pos[rand.Intn(len(characters_pos))]
+		} else {
+			s[i] = characters[rand.Intn(len(characters))]
+		}
 	}
 	return string(s)
 }
