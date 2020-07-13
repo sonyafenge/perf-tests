@@ -29,6 +29,7 @@ import (
 	"k8s.io/perf-tests/clusterloader2/pkg/config"
 	"k8s.io/perf-tests/clusterloader2/pkg/errors"
 	"k8s.io/perf-tests/clusterloader2/pkg/framework/client"
+	"k8s.io/perf-tests/clusterloader2/pkg/util"
 
 	// ensure auth plugins are loaded
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -104,13 +105,42 @@ func (f *Framework) CreateAutomanagedNamespaces(namespaceCount int) error {
 	if f.automanagedNamespaceCount != 0 {
 		return fmt.Errorf("automanaged namespaces already created")
 	}
-	for i := 1; i <= namespaceCount; i++ {
-		name := fmt.Sprintf("%v-%d", f.automanagedNamespacePrefix, i)
-		if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
-			return err
+
+	startpos := 0
+	endpos := 0
+	if f.clusterConfig.Apiserverextranum == 0 {
+		for i := 1; i <= namespaceCount; i++ {
+			name := fmt.Sprintf("%s-%v", util.RandomDNS1123String(6, startpos, endpos), f.automanagedNamespacePrefix)
+			if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
+				return err
+			}
+			f.automanagedNamespaceCount++
 		}
-		f.automanagedNamespaceCount++
+	} else {
+		namespaceinterval := 0
+		apiservernum := f.clusterConfig.Apiserverextranum + 1
+		if namespaceCount%apiservernum > 0 {
+			namespaceinterval = namespaceCount/apiservernum + 1
+		} else {
+			namespaceinterval = namespaceCount / apiservernum
+		}
+		for server := 1; server <= apiservernum; server++ {
+			endpos = startpos + (26 / apiservernum)
+			for i := 1; i <= namespaceinterval; i++ {
+				name := fmt.Sprintf("%s-%v", util.RandomDNS1123String(6, startpos, endpos), f.automanagedNamespacePrefix)
+				if err := client.CreateNamespace(f.clientSets.GetClient(), name); err != nil {
+					return err
+				}
+				f.automanagedNamespaceCount++
+			}
+			if namespaceCount-f.automanagedNamespaceCount < namespaceinterval {
+				namespaceinterval = namespaceCount - f.automanagedNamespaceCount
+			}
+			startpos = endpos
+
+		}
 	}
+
 	return nil
 }
 
@@ -133,23 +163,39 @@ func (f *Framework) ListAutomanagedNamespaces() ([]string, error) {
 	return automanagedNamespacesList, nil
 }
 
+func (f *Framework) deleteNamespace(namespace string) error {
+	clientSet := f.clientSets.GetClient()
+	if err := client.DeleteNamespace(clientSet, namespace); err != nil {
+		return err
+	}
+	if err := client.WaitForDeleteNamespace(clientSet, namespace); err != nil {
+		return err
+	}
+	return nil
+}
+
 // DeleteAutomanagedNamespaces deletes all automanged namespaces.
 func (f *Framework) DeleteAutomanagedNamespaces() *errors.ErrorList {
 	var wg wait.Group
 	errList := errors.NewErrorList()
-	for i := 1; i <= f.automanagedNamespaceCount; i++ {
-		clientSet := f.clientSets.GetClient()
-		name := fmt.Sprintf("%v-%d", f.automanagedNamespacePrefix, i)
-		wg.Start(func() {
-			if err := client.DeleteNamespace(clientSet, name); err != nil {
-				errList.Append(err)
-				return
-			}
-			if err := client.WaitForDeleteNamespace(clientSet, name); err != nil {
-				errList.Append(err)
-			}
-		})
+	automanagedNamespacesList, err := f.ListAutomanagedNamespaces()
+	if err != nil {
+		errList.Append(err)
+		return errList
 	}
+	if len(automanagedNamespacesList) > 0 {
+		for namespaceIndex := range automanagedNamespacesList {
+			nsName := automanagedNamespacesList[namespaceIndex]
+			wg.Start(func() {
+				if err := f.deleteNamespace(nsName); err != nil {
+					errList.Append(err)
+					return
+				}
+			})
+		}
+
+	}
+
 	wg.Wait()
 	f.automanagedNamespaceCount = 0
 	return errList
@@ -214,5 +260,5 @@ func (f *Framework) ApplyTemplatedManifests(manifestGlob string, templateMapping
 }
 
 func (f *Framework) isAutomanagedNamespace(name string) (bool, error) {
-	return regexp.MatchString(f.automanagedNamespacePrefix+"-[1-9][0-9]*", name)
+	return regexp.MatchString("[a-zA-Z0-9]{6,}-"+f.automanagedNamespacePrefix, name)
 }

@@ -38,6 +38,7 @@ type ClusterConfig struct {
 	MasterInternalIPs          []string
 	MasterName                 string
 	KubemarkRootKubeConfigPath string
+	Apiserverextranum          int //APISERVER_EXTRA_NUM
 }
 
 // PrometheusConfig represents all flags used by prometheus.
