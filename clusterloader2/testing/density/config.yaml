@@ -148,18 +148,3 @@ steps:
     Params:
       action: gather
   {{end}}
-  - Identifier: InClusterNetworkLatency
-    Method: InClusterNetworkLatency
-    Params:
-      action: gather
-  - Identifier: DnsLookupLatency
-    Method: DnsLookupLatency
-    Params:
-      action: gather
-  - Identifier: TestMetrics
-    Method: TestMetrics
-    Params:
-      action: gather
-      systemPodMetricsEnabled: {{$ENABLE_SYSTEM_POD_METRICS}}
-      restartCountThresholdOverrides: {{YamlQuote $RESTART_COUNT_THRESHOLD_OVERRIDES 4}}
-      enableRestartCountCheck: {{$ENABLE_RESTART_COUNT_CHECK}}
