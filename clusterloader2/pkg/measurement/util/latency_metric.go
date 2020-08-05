@@ -98,6 +98,12 @@ func NewLatencyMetric(latencies []LatencyData) LatencyMetric {
 		// but 0 is the best we can get for time.Duration type.
 		return LatencyMetric{Perc50: 0, Perc90: 0, Perc99: 0}
 	}
+
+	fmt.Printf("\n 1 -------------------------------------- 1\n")
+	for i, latency := range latencies {
+		fmt.Printf("\n %v  %#v", i, latency)
+	}
+	fmt.Printf("\n 1 ++++++++++++++++++++++++++++++++++++++ 1\n")
 	perc50 := latencies[int(math.Ceil(float64(length*50)/100))-1].GetLatency()
 	perc90 := latencies[int(math.Ceil(float64(length*90)/100))-1].GetLatency()
 	perc99 := latencies[int(math.Ceil(float64(length*99)/100))-1].GetLatency()
@@ -106,6 +112,11 @@ func NewLatencyMetric(latencies []LatencyData) LatencyMetric {
 
 // NewLatencyMetricPrometheus tries to parse latency data from results of Prometheus query.
 func NewLatencyMetricPrometheus(samples []*model.Sample) (*LatencyMetric, error) {
+	fmt.Printf("\n 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 2\n")
+	for i, sample := range samples {
+		fmt.Printf("\n %v  %#v", i, sample)
+	}
+	fmt.Printf("\n 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 2\n")
 	var latencyMetric LatencyMetric
 	for _, sample := range samples {
 		val, ok := sample.Metric["quantile"]

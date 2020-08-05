@@ -609,9 +609,11 @@ func updateURLMetrics(req *Request, resp *http.Response, err error) {
 	// Errors can be arbitrary strings. Unbound label cardinality is not suitable for a metric
 	// system so we just report them as `<error>`.
 	if err != nil {
+		fmt.Printf("\n perf test logging request result 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~ %v %v %v \n", "No Error", req.verb, url)		
 		metrics.RequestResult.Increment("<error>", req.verb, url)
 	} else {
 		//Metrics for failure codes
+		fmt.Printf("\n perf test logging request result 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~ %v %v %v \n", strconv.Itoa(resp.StatusCode), req.verb, url)	
 		metrics.RequestResult.Increment(strconv.Itoa(resp.StatusCode), req.verb, url)
 	}
 }
@@ -679,6 +681,7 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 	//Metrics for total request latency
 	start := time.Now()
 	defer func() {
+		fmt.Printf("\n perf test logging request latency ~~~~~~~~~~~~~~~~~~~~~~~~~~ %v %v %v \n", r.verb, r.URL().Path, time.Since(start))
 		metrics.RequestLatency.Observe(r.verb, r.finalURLTemplate(), time.Since(start))
 	}()
 
