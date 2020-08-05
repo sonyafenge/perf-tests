@@ -112,16 +112,7 @@ func (e *PrometheusQueryExecutor) Query(query string, queryTime time.Time) ([]*m
 			Services("monitoring").
 			ProxyGet("http", "prometheus-k8s", "9090", "api/v1/query", params).
 			DoRaw()
-
-		reqWrapper := e.client.CoreV1().
-			Services("monitoring").
-			ProxyGet("http", "prometheus-k8s", "9090", "api/v1/query", params)
-		if req, ok := reqWrapper.(restclient.Request); ok {
-			fmt.Printf("\n 1^^^^^^^^^^^^^^^^^^^^^^^^^^^ %v %v \n %#v \n", req.Verb, req.URL().Path, req)
-			fmt.Printf("\n 2^^^^^^^^^^^^^^^^^^^^^^^^^^^ %v %v \n", body, queryErr)
-		} else {
-			fmt.Printf("\n 0^^^^^^^^^^^^^^^^^^^^^^^^^^^ unable to convert %#v\n", reqWrapper)
-		}
+		fmt.Printf("\n 2^^^^^^^^^^^^^^^^^^^^^^^^^^^ %v %v \n", body, queryErr)
 		if queryErr != nil {
 			return false, nil
 		}

@@ -37,5 +37,8 @@ func (c *services) ProxyGet(scheme, name, port, path string, params map[string]s
 	for k, v := range params {
 		request = request.Param(k, v)
 	}
+
+	fmt.Printf("\n 1 ProxyGet ^^^^^^^^^^^^^^^^^^^^^^^^^^^ %v %v \n %#v \n", request.Verb, request.URL().Path, request)
+
 	return request
 }
