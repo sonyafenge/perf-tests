@@ -111,7 +111,7 @@ func (e *PrometheusQueryExecutor) Query(query string, queryTime time.Time) ([]*m
 			Services("monitoring").
 			ProxyGet("http", "prometheus-k8s", "9090", "api/v1/query", params).
 			DoRaw()
-		fmt.Printf("\n 2^^^^^^^^^^^^^^^^^^^^^^^^^^^ %v %v \n", body, queryErr)
+		fmt.Printf("\n 2^^^^^^^^^^^^^^^^^^^^^^^^^^^%v \n", queryErr)
 		if queryErr != nil {
 			return false, nil
 		}
@@ -128,6 +128,10 @@ func (e *PrometheusQueryExecutor) Query(query string, queryTime time.Time) ([]*m
 	}
 
 	samples, err := ExtractMetricSamples2(body)
+	fmt.Printf("\n 3^^^^^^^^^^^^^^^^^^^^^^^^^^^%v samples\n", len(samples))
+	for _, sample := range samples {
+		fmt.Printf("\n 43^^^^^^^^^^^^^^^^^^^^^^^^^^^%#v \n", sample)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("exctracting error: %v", err)
 	}
