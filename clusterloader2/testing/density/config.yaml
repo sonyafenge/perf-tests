@@ -5,7 +5,7 @@
 #Constants
 {{$DENSITY_RESOURCE_CONSTRAINTS_FILE := DefaultParam .DENSITY_RESOURCE_CONSTRAINTS_FILE ""}}
 {{$NODE_MODE := DefaultParam .NODE_MODE "allnodes"}}
-{{$NODES_PER_NAMESPACE := DefaultParam .NODES_PER_NAMESPACE 10}}
+{{$NODES_PER_NAMESPACE := DefaultParam .NODES_PER_NAMESPACE 100}}
 {{$PODS_PER_NODE := DefaultParam .PODS_PER_NODE 30}}
 {{$DENSITY_TEST_THROUGHPUT := DefaultParam .DENSITY_TEST_THROUGHPUT 20}}
 # LATENCY_POD_MEMORY and LATENCY_POD_CPU are calculated for 1-core 4GB node.
@@ -50,14 +50,6 @@ chaosMonkey:
 steps:
 - name: Starting measurements
   measurements:
-  - Identifier: APIResponsiveness
-    Method: APIResponsiveness
-    Params:
-      action: reset
-  - Identifier: APIResponsivenessPrometheus
-    Method: APIResponsivenessPrometheus
-    Params:
-      action: start
   - Identifier: APIResponsivenessPrometheusSimple
     Method: APIResponsivenessPrometheus
     Params:
@@ -77,7 +69,7 @@ steps:
       apiVersion: apps/v1
       kind: Deployment
       labelSelector: group = latency
-      operationTimeout: 15m
+      operationTimeout: 5m
 
 - name: Creating latency pods
   phases:
@@ -129,10 +121,6 @@ steps:
 
 - name: Collecting measurements
   measurements:
-  - Identifier: APIResponsiveness
-    Method: APIResponsiveness
-    Params:
-      action: gather
   - Identifier: APIResponsivenessPrometheusSimple
     Method: APIResponsivenessPrometheus
     Params:
@@ -142,9 +130,3 @@ steps:
       {{end}}
       useSimpleLatencyQuery: true
       summaryName: APIResponsivenessPrometheus_simple
-  {{if not $USE_SIMPLE_LATENCY_QUERY}}
-  - Identifier: APIResponsivenessPrometheus
-    Method: APIResponsivenessPrometheus
-    Params:
-      action: gather
-  {{end}}
